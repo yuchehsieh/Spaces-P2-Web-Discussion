@@ -18,10 +18,10 @@ interface VideoGridProps {
 }
 
 const MOCK_CAMERA_IMAGES = [
-  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_1.jpg?raw=true',
-  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_2.jpg?raw=true',
-  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_3.jpg?raw=true',
-  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_4.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_1.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_2.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_3.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_4.jpg?raw=true',
 ];
 
 const VideoGrid: React.FC<VideoGridProps> = ({ 

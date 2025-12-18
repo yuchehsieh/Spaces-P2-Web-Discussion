@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { MapPin, Navigation, Video, Cpu, DoorOpen, Bell, AlertTriangle, Clock, ChevronRight, Layout } from 'lucide-react';
 import { SITE_TREE_DATA, MOCK_EVENTS, INITIAL_FLOOR_PLANS } from '../constants';
 import { SiteNode, SecurityEvent, FloorPlanData } from '../types';
-import FloorPlanModal from './FloorPlanModal';
+import FloorPlanView from './FloorPlanModal';
 
 // Declare Leaflet global variable since it's loaded via CDN
 declare const L: any;
@@ -36,15 +36,35 @@ const MapTab: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<Record<string, any>>({});
+  const hqOpenedRef = useRef<boolean>(false);
+  const lastViewedSiteIdRef = useRef<string | null>(null);
   
   const [selectedSiteForPlan, setSelectedSiteForPlan] = useState<SiteNode | null>(null);
   const [floorPlans, setFloorPlans] = useState<FloorPlanData[]>(INITIAL_FLOOR_PLANS);
 
-  // Global callback for Leaflet buttons
+  // Use a ref to store the latest SITE_TREE_DATA for the Leaflet popup callback
+  const siteTreeRef = useRef(SITE_TREE_DATA);
+
+  // Global callback for Leaflet buttons (needed since popup HTML is a string)
   useEffect(() => {
     (window as any).openFloorPlan = (siteId: string) => {
-      const site = SITE_TREE_DATA[0].children?.find(c => c.id === siteId);
-      if (site) setSelectedSiteForPlan(site);
+      // Find the specific site node in the tree
+      const findSite = (nodes: SiteNode[]): SiteNode | undefined => {
+        for (const node of nodes) {
+          if (node.id === siteId) return node;
+          if (node.children) {
+            const found = findSite(node.children);
+            if (found) return found;
+          }
+        }
+        return undefined;
+      };
+
+      const site = findSite(siteTreeRef.current);
+      if (site) {
+        lastViewedSiteIdRef.current = site.id; // 紀錄當前開啟的 Site ID
+        setSelectedSiteForPlan(site);
+      }
     };
   }, []);
 
@@ -94,17 +114,47 @@ const MapTab: React.FC = () => {
     return statsMap;
   }, []);
 
+  // Initialize and update map
   useEffect(() => {
-    if (!mapContainerRef.current || mapInstanceRef.current) return;
+    // If we're in the floor plan view, we don't need to re-initialize markers right now, 
+    // but the container must stay in the DOM.
+    if (selectedSiteForPlan) return; 
 
-    const map = L.map(mapContainerRef.current).setView([25.057, 121.558], 13);
-    mapInstanceRef.current = map;
+    if (!mapContainerRef.current) return;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(map);
+    if (!mapInstanceRef.current) {
+        const map = L.map(mapContainerRef.current).setView([25.057, 121.558], 13);
+        mapInstanceRef.current = map;
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; CARTO',
+          subdomains: 'abcd',
+          maxZoom: 20
+        }).addTo(map);
+    }
+
+    const map = mapInstanceRef.current;
+    
+    // Ensure map is correctly sized when returning to view
+    setTimeout(() => {
+        map.invalidateSize();
+        
+        // 如果是剛從平面圖回來，打開對應的 Popup
+        if (lastViewedSiteIdRef.current) {
+          const marker = markersRef.current[lastViewedSiteIdRef.current];
+          if (marker) {
+            marker.openPopup();
+          }
+        }
+    }, 100);
+
+    // Clear existing markers to prevent duplicates
+    Object.values(markersRef.current).forEach(m => {
+      if (m && typeof m.remove === 'function') {
+        m.remove();
+      }
+    });
+    markersRef.current = {};
 
     const createIcon = (color: string, hasAlert: boolean) => {
         return L.divIcon({
@@ -190,12 +240,13 @@ const MapTab: React.FC = () => {
 
         marker.bindPopup(popupContent, { maxWidth: 300 });
 
-        if (loc.id === 'hq') {
+        if (loc.id === 'hq' && !hqOpenedRef.current) {
             marker.openPopup();
+            hqOpenedRef.current = true;
         }
     });
 
-  }, [siteDeviceStats, siteEvents]);
+  }, [siteDeviceStats, siteEvents, selectedSiteForPlan]);
 
   const handleSiteClick = (loc: typeof LOCATIONS[0]) => {
     if (mapInstanceRef.current) {
@@ -218,73 +269,78 @@ const MapTab: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-full relative">
-        <div ref={mapContainerRef} className="flex-1 h-full z-0 bg-[#0f172a]" />
-        
-        {/* Monitoring Site List Overlay */}
-        <div className="absolute top-4 right-4 z-[400] flex flex-col gap-4">
-            <div className="bg-[#1e293b]/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl p-4 w-72">
-                <div className="flex items-center justify-between mb-4 border-b border-slate-700/50 pb-3">
-                    <h3 className="text-white font-bold text-sm flex items-center gap-2">
-                        <MapPin size={16} className="text-blue-400" />
-                        監控據點狀態列表
-                    </h3>
-                </div>
+    <div className="flex h-full w-full relative overflow-hidden">
+        {/* Map View Container */}
+        <div 
+          className={`h-full w-full relative animate-in fade-in slide-in-from-left-4 duration-300 ${selectedSiteForPlan ? 'hidden' : 'flex'}`}
+        >
+            <div ref={mapContainerRef} className="flex-1 h-full z-0 bg-[#0f172a]" />
+            
+            {/* Monitoring Site List Overlay */}
+            <div className="absolute top-4 right-4 z-[400] flex flex-col gap-4">
+                <div className="bg-[#1e293b]/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl p-4 w-72">
+                    <div className="flex items-center justify-between mb-4 border-b border-slate-700/50 pb-3">
+                        <h3 className="text-white font-bold text-sm flex items-center gap-2">
+                            <MapPin size={16} className="text-blue-400" />
+                            監控據點狀態列表
+                        </h3>
+                    </div>
 
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
-                    {LOCATIONS.map(loc => {
-                        const stats = siteDeviceStats[loc.id] || { camera: 0, sensor: 0, door: 0, emergency: 0 };
-                        const events = siteEvents[loc.id] || [];
-                        const abnormalCount = events.filter(e => e.type === 'alert' || e.type === 'warning').length;
-                        const hasAlert = abnormalCount > 0;
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                        {LOCATIONS.map(loc => {
+                            const stats = siteDeviceStats[loc.id] || { camera: 0, sensor: 0, door: 0, emergency: 0 };
+                            const events = siteEvents[loc.id] || [];
+                            const abnormalCount = events.filter(e => e.type === 'alert' || e.type === 'warning').length;
+                            const hasAlert = abnormalCount > 0;
 
-                        return (
-                            <div 
-                                key={loc.id} 
-                                className={`p-3.5 rounded-xl transition-all group relative border ${
-                                  hasAlert 
-                                    ? 'bg-red-500/5 border-red-500/30 hover:border-red-500/60' 
-                                    : 'bg-[#0f172a]/60 border-slate-800 hover:border-blue-500/50'
-                                } cursor-pointer`}
-                                onClick={() => handleSiteClick(loc)}
-                            >
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-sm font-bold truncate ${hasAlert ? 'text-red-400' : 'text-slate-200'}`}>
-                                          {loc.label}
-                                        </span>
-                                      </div>
-                                      <div className="text-[10px] text-slate-500 truncate w-48">{loc.address}</div>
+                            return (
+                                <div 
+                                    key={loc.id} 
+                                    className={`p-3.5 rounded-xl transition-all group relative border ${
+                                      hasAlert 
+                                        ? 'bg-red-500/5 border-red-500/30 hover:border-red-500/60' 
+                                        : 'bg-[#0f172a]/60 border-slate-800 hover:border-blue-500/50'
+                                    } cursor-pointer`}
+                                    onClick={() => handleSiteClick(loc)}
+                                >
+                                    <div className="flex items-start justify-between mb-2">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-sm font-bold truncate ${hasAlert ? 'text-red-400' : 'text-slate-200'}`}>
+                                              {loc.label}
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] text-slate-500 truncate w-48">{loc.address}</div>
+                                        </div>
+                                        <div className={`w-2.5 h-2.5 rounded-full ${hasAlert ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' : (loc.type === 'hq' ? 'bg-blue-500' : 'bg-green-500')}`}></div>
                                     </div>
-                                    <div className={`w-2.5 h-2.5 rounded-full ${hasAlert ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' : (loc.type === 'hq' ? 'bg-blue-500' : 'bg-green-500')}`}></div>
-                                </div>
 
-                                <div className="flex items-center justify-between mt-3">
-                                  <div className="flex items-center gap-2.5">
-                                      <div className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-800/50"><Video size={11} className="text-blue-400"/> {stats.camera}</div>
-                                      <div className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-800/50"><Cpu size={11} className="text-yellow-400"/> {stats.sensor}</div>
-                                  </div>
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); (window as any).openFloorPlan(loc.id); }}
-                                    className="p-1.5 bg-slate-800 hover:bg-blue-600 rounded text-slate-400 hover:text-white transition-colors"
-                                    title="開啟平面圖"
-                                  >
-                                    <Layout size={14} />
-                                  </button>
+                                    <div className="flex items-center justify-between mt-3">
+                                      <div className="flex items-center gap-2.5">
+                                          <div className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-800/50"><Video size={11} className="text-blue-400"/> {stats.camera}</div>
+                                          <div className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-800/50"><Cpu size={11} className="text-yellow-400"/> {stats.sensor}</div>
+                                      </div>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); (window as any).openFloorPlan(loc.id); }}
+                                        className="p-1.5 bg-slate-800 hover:bg-blue-600 rounded text-slate-400 hover:text-white transition-colors"
+                                        title="開啟平面圖"
+                                      >
+                                        <Layout size={14} />
+                                      </button>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </div>
 
-        {/* Floor Plan Modal */}
+        {/* Floor Plan View Overlay */}
         {selectedSiteForPlan && (
-          <FloorPlanModal 
+          <FloorPlanView 
             site={selectedSiteForPlan}
-            onClose={() => setSelectedSiteForPlan(null)}
+            onBack={() => setSelectedSiteForPlan(null)}
             initialData={floorPlans.find(p => p.siteId === selectedSiteForPlan.id)}
             onSave={handleSaveFloorPlan}
             events={MOCK_EVENTS}

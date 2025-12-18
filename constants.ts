@@ -96,7 +96,7 @@ export const MOCK_EVENTS: SecurityEvent[] = [
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
   {
     siteId: 'hq',
-    imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/Floor%20Plan.png?raw=true',
+    imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
     sensors: [
       { id: 'c-ipc-1', x: 25, y: 30 },
       { id: 'c-ipc-2', x: 70, y: 25 },

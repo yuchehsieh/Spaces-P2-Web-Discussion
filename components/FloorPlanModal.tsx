@@ -1,17 +1,17 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { X, Upload, Plus, Video, Cpu, DoorOpen, Bell, AlertTriangle, Link as LinkIcon, Move, Trash2, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Upload, Plus, Video, Cpu, DoorOpen, Bell, AlertTriangle, Link as LinkIcon, Move, Trash2, CheckCircle } from 'lucide-react';
 import { SiteNode, FloorPlanData, SensorPosition, SecurityEvent } from '../types';
 
-interface FloorPlanModalProps {
+interface FloorPlanViewProps {
   site: SiteNode;
-  onClose: () => void;
+  onBack: () => void;
   initialData?: FloorPlanData;
   onSave: (data: FloorPlanData) => void;
   events: SecurityEvent[];
 }
 
-const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialData, onSave, events }) => {
+const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData, onSave, events }) => {
   const [isEditing, setIsEditing] = useState(!initialData);
   const [floorPlan, setFloorPlan] = useState<FloorPlanData>(initialData || { siteId: site.id, imageUrl: '', sensors: [] });
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -47,6 +47,7 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
   const handleDragOver = (e: React.DragEvent) => {
     if (!isEditing) return;
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -57,8 +58,11 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
     if (!sensorId) return;
 
     const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    let x = ((e.clientX - rect.left) / rect.width) * 100;
+    let y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    x = Math.max(0, Math.min(100, x));
+    y = Math.max(0, Math.min(100, y));
 
     const existingIndex = floorPlan.sensors.findIndex(s => s.id === sensorId);
     if (existingIndex > -1) {
@@ -94,7 +98,6 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
     }
   };
 
-  // Logic to draw link lines
   const activeEvent = useMemo(() => events.find(e => e.id === selectedEventId), [selectedEventId, events]);
   const linkPath = useMemo(() => {
     if (!activeEvent || !activeEvent.sensorId || !activeEvent.linkedSensorId) return null;
@@ -105,16 +108,21 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
   }, [activeEvent, floorPlan.sensors]);
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-8 animate-in fade-in duration-200">
-      <div className="bg-[#0f172a] border border-slate-700 w-full max-w-6xl h-full flex flex-col rounded-2xl overflow-hidden shadow-2xl">
-        
+    <div className="flex flex-col h-full w-full bg-[#0f172a] animate-in fade-in slide-in-from-right-4 duration-300">
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]">
           <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Move className="text-blue-400" /> {site.label} - 2D 平面管理
+            <button 
+              onClick={onBack}
+              className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors bg-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-700"
+            >
+              <ChevronLeft size={16} /> 返回地圖
+            </button>
+            <div className="h-6 w-px bg-slate-700"></div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Move className="text-blue-400" size={18} /> {site.label} - 2D 平面管理
             </h2>
-            <div className="flex bg-black/40 p-1 rounded-lg">
+            <div className="flex bg-black/40 p-1 rounded-lg ml-2">
               <button 
                 onClick={() => setIsEditing(false)} 
                 className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${!isEditing ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
@@ -133,32 +141,26 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
             {isEditing && (
               <button 
                 onClick={() => { onSave(floorPlan); setIsEditing(false); }}
-                className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-900/20"
               >
                 <CheckCircle size={16} /> 儲存配置
               </button>
             )}
-            <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-full text-slate-400 transition-colors">
-              <X size={24} />
-            </button>
           </div>
         </div>
 
         <div className="flex-1 flex overflow-hidden">
           {/* Main Plan Area */}
-          <div 
-            className="flex-1 bg-black/40 relative overflow-hidden flex items-center justify-center p-8 group"
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
+          <div className="flex-1 bg-black/60 relative overflow-hidden flex items-center justify-center p-8">
             {floorPlan.imageUrl ? (
               <div 
                 ref={containerRef}
-                className="relative max-w-full max-h-full shadow-2xl rounded-lg"
+                className="relative max-w-full max-h-full shadow-2xl rounded-lg border border-slate-700 bg-slate-900/50"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
               >
-                <img src={floorPlan.imageUrl} alt="Floor Plan" className="max-w-full max-h-full block rounded-lg border border-slate-800 pointer-events-none" />
+                <img src={floorPlan.imageUrl} alt="Floor Plan" className="max-w-full max-h-full block rounded-lg pointer-events-none" />
                 
-                {/* Connection Line */}
                 {linkPath && (
                   <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
                     <line 
@@ -174,7 +176,6 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
                   </svg>
                 )}
 
-                {/* Sensors on map */}
                 {floorPlan.sensors.map(pos => {
                   const device = allDevices.find(d => d.id === pos.id);
                   const hasAlert = events.some(e => e.sensorId === pos.id && e.type === 'alert');
@@ -185,7 +186,7 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
                       key={pos.id}
                       draggable={isEditing}
                       onDragStart={(e) => handleSensorDragStart(e, pos.id)}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-300 ${isEditing ? 'cursor-grab active:cursor-grabbing hover:scale-125' : 'cursor-pointer'}`}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-transform duration-100 ${isEditing ? 'cursor-grab active:cursor-grabbing hover:scale-125' : 'cursor-pointer'}`}
                       style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     >
                       <div className={`
@@ -224,14 +225,14 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
             )}
           </div>
 
-          {/* Right Sidebar - Logic/Events/Inventory */}
+          {/* Right Sidebar */}
           <div className="w-80 border-l border-slate-800 bg-[#0a0f1e] flex flex-col">
             {isEditing ? (
               <div className="flex-1 flex flex-col p-4">
                 <h3 className="text-sm font-bold text-slate-400 mb-4 flex items-center gap-2">
                   <Plus size={16} /> 尚未部署設備 ({unplacedDevices.length})
                 </h3>
-                <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-2">
                   {unplacedDevices.map(d => (
                     <div 
                       key={d.id}
@@ -302,8 +303,6 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
             </div>
           </div>
         </div>
-      </div>
-      
       <style>{`
         @keyframes dash {
           to { stroke-dashoffset: -10; }
@@ -313,4 +312,4 @@ const FloorPlanModal: React.FC<FloorPlanModalProps> = ({ site, onClose, initialD
   );
 };
 
-export default FloorPlanModal;
+export default FloorPlanView;

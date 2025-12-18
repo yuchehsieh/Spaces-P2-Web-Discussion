@@ -79,7 +79,7 @@ const App: React.FC = () => {
          <div className="flex items-center">
             <div className="flex items-center justify-center p-1">
                <img 
-                 src="https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/LOGO_SKS_NEW2.png?raw=true" 
+                 src="https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/LOGO_SKS_NEW2.png?raw=true" 
                  alt="SKS Logo" 
                  className="h-9 w-auto object-contain"
                  onError={(e) => {
