@@ -8,6 +8,7 @@ import SecurityTab from './components/SecurityTab';
 import MapTab from './components/MapTab'; 
 import SettingTab from './components/SettingTab';
 import AccountTab from './components/AccountTab';
+import EventTab from './components/EventTab';
 import { SITE_TREE_DATA, MOCK_EVENTS } from './constants';
 import { MainNavType, SiteNode, TabType, GridSize, SecurityEvent } from './types';
 import { Grid2x2, Grid3x3, Square, User as UserIcon } from 'lucide-react';
@@ -183,10 +184,11 @@ const App: React.FC = () => {
                 <SettingTab />
              ) : activeNav === 'account-center' ? (
                 <AccountTab />
+             ) : activeNav === 'event-center' ? (
+                <EventTab />
              ) : (
                 <div className="flex-1 flex items-center justify-center bg-[#050914] text-slate-500 italic">
                    {activeNav === 'device-center' && '設備中心正在開發中...'}
-                   {activeNav === 'event-center' && '事件中心正在開發中...'}
                 </div>
              )}
           </div>

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { MapPin, Navigation, Video, Cpu, DoorOpen, Bell, AlertTriangle, Clock, ChevronRight, Layout } from 'lucide-react';
 import { SITE_TREE_DATA, MOCK_EVENTS, INITIAL_FLOOR_PLANS } from '../constants';
@@ -149,7 +148,8 @@ const MapTab: React.FC = () => {
     }, 100);
 
     // Clear existing markers to prevent duplicates
-    Object.values(markersRef.current).forEach(m => {
+    // Added type casting to any for the marker to avoid 'unknown' type errors in TS environments where Object.values returns unknown[]
+    Object.values(markersRef.current).forEach((m: any) => {
       if (m && typeof m.remove === 'function') {
         m.remove();
       }
