@@ -1,3 +1,4 @@
+
 import { SiteNode, SecurityEvent } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
@@ -86,7 +87,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
 
 export const MOCK_EVENTS: SecurityEvent[] = [
   { id: 'e1', timestamp: '17:00:40', type: 'alert', message: 'Motion Detected', location: '商研中心 - IPC' },
-  { id: 'e2', timestamp: '16:58:12', type: 'warning', message: 'Door Open', location: '倉庫 - 門磁' },
+  { id: 'e2', timestamp: '16:58:12', type: 'info', message: 'Door Normal', location: '倉庫 - 門磁' },
   { id: 'e3', timestamp: '16:45:00', type: 'info', message: 'System Check', location: '中山駐區' },
   { id: 'e4', timestamp: '16:30:22', type: 'alert', message: 'Line Cross', location: '大辦公區 - IPC' },
   { id: 'e5', timestamp: '16:15:10', type: 'info', message: 'User Login', location: 'Admin' },
