@@ -55,8 +55,8 @@ interface Schedule {
   name: string;
   zoneId: string; 
   zoneLabel: string;
-  armTime: string;    // Stage 1: Always Arm
-  disarmTime: string; // Stage 2: Always Disarm
+  armTime: string;    
+  disarmTime: string; 
   days: string[]; 
   isActive: boolean;
   createdBy: string;
@@ -94,7 +94,6 @@ const generateMockDeviceStatus = (nodes: SiteNode[]): Record<string, DeviceStatu
 };
 
 // --- Constants ---
-// Define the missing daysOptions variable
 const daysOptions = ['一', '二', '三', '四', '五', '六', '日'];
 
 // --- Component: Site Section ---
@@ -103,7 +102,7 @@ const SiteSection: React.FC<{
   deviceStatuses: Record<string, DeviceStatus>;
   zoneArmState: ZoneArmState;
   handleArmClick: (zoneId: string, label: string) => void;
-  handleGlobalArm: (zones: SiteNode[]) => void;
+  handleGlobalArm: (zones: SiteNode[], siteId: string) => void;
   handleGlobalDisarm: (zones: SiteNode[]) => void;
   schedules: Schedule[];
   openScheduleManager: (site: SiteNode) => void;
@@ -138,7 +137,6 @@ const SiteSection: React.FC<{
 
   return (
     <div className="bg-slate-900/20 border border-slate-800 rounded-2xl overflow-hidden mb-6">
-      {/* Site Header */}
       <div 
         onClick={() => setIsSiteExpanded(!isSiteExpanded)}
         className="px-6 py-4 bg-[#111827] flex items-center justify-between cursor-pointer hover:bg-slate-800 transition-colors"
@@ -148,12 +146,30 @@ const SiteSection: React.FC<{
           <h2 className="text-lg font-bold text-white">{site.label}</h2>
           <span className="text-xs text-slate-500 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{zones.length} 個分區</span>
         </div>
-        {isSiteExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        
+        <div className="flex items-center gap-4">
+          <div className="flex gap-2">
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleGlobalArm(zones, site.id); }}
+              className="px-3 py-1.5 bg-green-900/40 hover:bg-green-800/60 border border-green-700/50 text-green-300 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5"
+            >
+              <Lock size={12} /> 全區設防
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleGlobalDisarm(zones); }}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5"
+            >
+              <Unlock size={12} /> 全區解除
+            </button>
+          </div>
+          <div className="text-slate-500">
+            {isSiteExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </div>
+        </div>
       </div>
 
       {isSiteExpanded && (
         <div className="p-6 space-y-6">
-          {/* Section: Schedule */}
           <div className="space-y-3">
             <div 
               onClick={() => setIsScheduleExpanded(!isScheduleExpanded)}
@@ -198,7 +214,6 @@ const SiteSection: React.FC<{
             )}
           </div>
 
-          {/* Section: Control */}
           <div className="space-y-4">
             <div 
               onClick={() => setIsControlExpanded(!isControlExpanded)}
@@ -212,20 +227,6 @@ const SiteSection: React.FC<{
 
             {isControlExpanded && (
               <div className="space-y-4 animate-in fade-in duration-300">
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleGlobalArm(zones)}
-                    className="px-4 py-2 bg-green-900/40 hover:bg-green-800/60 border border-green-700/50 text-green-300 rounded-lg text-xs font-bold transition-all flex items-center gap-2"
-                  >
-                    <Lock size={14} /> 全區設防
-                  </button>
-                  <button 
-                    onClick={() => handleGlobalDisarm(zones)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 rounded-lg text-xs font-bold transition-all flex items-center gap-2"
-                  >
-                    <Unlock size={14} /> 全區解除
-                  </button>
-                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                   {zones.map(zone => {
                     const isArmed = zoneArmState[zone.id] === 'armed';
@@ -254,7 +255,6 @@ const SiteSection: React.FC<{
             )}
           </div>
 
-          {/* Section: Devices */}
           <div className="space-y-4">
             <div 
               onClick={() => setIsDeviceExpanded(!isDeviceExpanded)}
@@ -329,7 +329,6 @@ const SiteSection: React.FC<{
   );
 };
 
-// --- Main Component ---
 const SecurityTab: React.FC = () => {
   const [zoneArmState, setZoneArmState] = useState<ZoneArmState>({});
   const [deviceStatuses, setDeviceStatuses] = useState<Record<string, DeviceStatus>>({});
@@ -402,10 +401,21 @@ const SecurityTab: React.FC = () => {
     }, 800);
   };
 
-  const handleGlobalArm = (zones: SiteNode[]) => {
+  const handleGlobalArm = (zones: SiteNode[], siteId: string) => {
     const newArmState = { ...zoneArmState };
     const result: GlobalActionResult = { type: 'arm', successCount: 0, failureCount: 0, failures: [] };
+    
     zones.forEach(zone => {
+        // DEMO 邏輯：如果是在中山處，且分區是倉庫 (warehouse)，強制失敗
+        if (siteId === 'zhongshan-branch' && zone.id === 'warehouse') {
+            result.failureCount++;
+            result.failures.push({ 
+                zone: zone.label, 
+                reasons: ['倉庫 - 門磁 處於開啟狀態', '倉庫 - 槍型攝影機 離線'] 
+            });
+            return;
+        }
+
         const check = checkZoneSafety(zone.id, zones);
         if (check.safe) {
             newArmState[zone.id] = 'armed';
@@ -470,7 +480,6 @@ const SecurityTab: React.FC = () => {
         ))}
       </div>
 
-      {/* --- MODALS --- (Result, Arm, Schedule - Identical logic as before but adapted for SiteSection) */}
       {globalResult && (
          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="bg-[#1e293b] border border-slate-600 rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200">
@@ -504,7 +513,7 @@ const SecurityTab: React.FC = () => {
 
       {armModalConfig?.isOpen && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1e293b] border border-slate-600 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-in zoom-in duration-200">
+          <div className="bg-[#1e293b] border border-slate-600 rounded-xl shadow-2xl max-sm w-full p-6 animate-in zoom-in duration-200">
              <div className="flex items-center space-x-3 mb-4">
                 <div className="p-2 bg-blue-900/50 rounded-lg text-blue-400"><ShieldAlert size={24} /></div>
                 <div><h3 className="text-lg font-bold text-white">確認啟動保全?</h3><p className="text-xs text-slate-400">{armModalConfig.zoneLabel}</p></div>

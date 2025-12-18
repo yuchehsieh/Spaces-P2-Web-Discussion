@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo, useRef } from 'react';
-import { ChevronLeft, Upload, Plus, Video, Cpu, DoorOpen, Bell, AlertTriangle, Link as LinkIcon, Move, Trash2, CheckCircle } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { ChevronLeft, Upload, Plus, Video, Cpu, DoorOpen, Bell, AlertTriangle, Link as LinkIcon, Move, Trash2, CheckCircle, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { SiteNode, FloorPlanData, SensorPosition, SecurityEvent } from '../types';
 
 interface FloorPlanViewProps {
@@ -16,7 +16,14 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
   const [floorPlan, setFloorPlan] = useState<FloorPlanData>(initialData || { siteId: site.id, imageUrl: '', sensors: [] });
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   
+  // Zoom & Pan States
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Flatten all devices in this site
   const allDevices = useMemo(() => {
@@ -39,10 +46,47 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
       const reader = new FileReader();
       reader.onload = (event) => {
         setFloorPlan(prev => ({ ...prev, imageUrl: event.target?.result as string }));
+        setScale(1);
+        setOffset({ x: 0, y: 0 });
       };
       reader.readAsDataURL(file);
     }
   };
+
+  // Zoom logic
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const newScale = Math.min(Math.max(0.5, scale + delta), 5);
+    setScale(newScale);
+  };
+
+  const handleZoomIn = () => setScale(prev => Math.min(prev + 0.2, 5));
+  const handleZoomOut = () => setScale(prev => Math.max(prev - 0.2, 0.5));
+  const handleResetZoom = () => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  // Pan logic
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isEditing && e.button !== 1 && !(e.target as HTMLElement).classList.contains('bg-slate-900/50')) {
+       // Only allow panning with middle click or if target is the background when editing
+       return;
+    }
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning) return;
+    setOffset({
+      x: e.clientX - panStart.x,
+      y: e.clientY - panStart.y
+    });
+  };
+
+  const handleMouseUp = () => setIsPanning(false);
 
   const handleDragOver = (e: React.DragEvent) => {
     if (!isEditing) return;
@@ -58,6 +102,8 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
     if (!sensorId) return;
 
     const rect = containerRef.current.getBoundingClientRect();
+    
+    // Correct dropping position considering scale and offset
     let x = ((e.clientX - rect.left) / rect.width) * 100;
     let y = ((e.clientY - rect.top) / rect.height) * 100;
 
@@ -109,8 +155,7 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0f172a] animate-in fade-in slide-in-from-right-4 duration-300">
-        {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#1e293b] z-30">
           <div className="flex items-center gap-4">
             <button 
               onClick={onBack}
@@ -150,16 +195,32 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
         </div>
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Main Plan Area */}
-          <div className="flex-1 bg-black/60 relative overflow-hidden flex items-center justify-center p-8">
+          {/* Main Plan Area with Pan & Zoom */}
+          <div 
+            ref={viewportRef}
+            className={`flex-1 bg-black/80 relative overflow-hidden flex items-center justify-center select-none ${isPanning ? 'cursor-grabbing' : isEditing ? 'cursor-default' : 'cursor-grab'}`}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
             {floorPlan.imageUrl ? (
               <div 
                 ref={containerRef}
-                className="relative max-w-full max-h-full shadow-2xl rounded-lg border border-slate-700 bg-slate-900/50"
+                className="relative shadow-2xl transition-transform duration-75 ease-out"
+                style={{ 
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                  transformOrigin: 'center center'
+                }}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
               >
-                <img src={floorPlan.imageUrl} alt="Floor Plan" className="max-w-full max-h-full block rounded-lg pointer-events-none" />
+                <img 
+                  src={floorPlan.imageUrl} 
+                  alt="Floor Plan" 
+                  className="max-w-[80vw] max-h-[70vh] block rounded-lg pointer-events-none border border-slate-700 bg-slate-900/50" 
+                />
                 
                 {linkPath && (
                   <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
@@ -167,12 +228,12 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
                       x1={`${linkPath.x1}%`} y1={`${linkPath.y1}%`} 
                       x2={`${linkPath.x2}%`} y2={`${linkPath.y2}%`} 
                       stroke="#ef4444" 
-                      strokeWidth="3" 
+                      strokeWidth={3 / scale} // Adjust stroke width for scale
                       strokeDasharray="5,5"
                       className="animate-[dash_1s_linear_infinite]"
                     />
-                    <circle cx={`${linkPath.x1}%`} cy={`${linkPath.y1}%`} r="4" fill="#ef4444" />
-                    <circle cx={`${linkPath.x2}%`} cy={`${linkPath.y2}%`} r="4" fill="#ef4444" />
+                    <circle cx={`${linkPath.x1}%`} cy={`${linkPath.y1}%`} r={4 / scale} fill="#ef4444" />
+                    <circle cx={`${linkPath.x2}%`} cy={`${linkPath.y2}%`} r={4 / scale} fill="#ef4444" />
                   </svg>
                 )}
 
@@ -189,21 +250,24 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
                       className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-transform duration-100 ${isEditing ? 'cursor-grab active:cursor-grabbing hover:scale-125' : 'cursor-pointer'}`}
                       style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     >
-                      <div className={`
-                        p-2 rounded-full border-2 flex items-center justify-center relative
-                        ${hasAlert ? 'bg-red-600 border-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'bg-blue-600/80 border-white/20 shadow-lg'}
-                        ${isHighlighted ? 'scale-150 z-30 ring-4 ring-yellow-400 ring-offset-2 ring-offset-[#0f172a]' : ''}
-                      `}>
+                      <div 
+                        className={`
+                          p-2 rounded-full border-2 flex items-center justify-center relative transition-transform
+                          ${hasAlert ? 'bg-red-600 border-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.8)]' : 'bg-blue-600/80 border-white/20 shadow-lg'}
+                          ${isHighlighted ? 'scale-150 z-30 ring-4 ring-yellow-400 ring-offset-2 ring-offset-[#0f172a]' : ''}
+                        `}
+                        style={{ transform: `scale(${1 / Math.sqrt(scale)})` }} // Anti-scaling to keep markers readable
+                      >
                         {getDeviceIcon(pos.id)}
                         {!isEditing && (
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-black/80 text-[10px] text-white px-2 py-0.5 rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-black/90 text-[10px] text-white px-2 py-0.5 rounded whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity font-bold border border-slate-700">
                             {device?.label}
                           </div>
                         )}
                         {isEditing && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); removeSensor(pos.id); }}
-                            className="absolute -top-2 -right-2 bg-red-500 rounded-full p-0.5 text-white shadow-md hover:bg-red-600"
+                            className="absolute -top-2 -right-2 bg-red-500 rounded-full p-0.5 text-white shadow-md hover:bg-red-600 transition-colors"
                           >
                             <Trash2 size={10} />
                           </button>
@@ -223,10 +287,23 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
                 </label>
               </div>
             )}
+
+            {/* Zoom Controls Overlay */}
+            {floorPlan.imageUrl && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 p-2 rounded-xl flex items-center gap-2 shadow-2xl z-40">
+                <button onClick={handleZoomOut} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors" title="縮小"><ZoomOut size={18}/></button>
+                <div className="w-12 text-center text-xs font-mono font-bold text-blue-400">{(scale * 100).toFixed(0)}%</div>
+                <button onClick={handleZoomIn} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors" title="放大"><ZoomIn size={18}/></button>
+                <div className="w-px h-4 bg-slate-700 mx-1"></div>
+                <button onClick={handleResetZoom} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors flex items-center gap-1.5" title="重設視角">
+                  <Maximize size={16}/> <span className="text-[10px] font-bold">RESET</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right Sidebar */}
-          <div className="w-80 border-l border-slate-800 bg-[#0a0f1e] flex flex-col">
+          <div className="w-80 border-l border-slate-800 bg-[#0a0f1e] flex flex-col z-20">
             {isEditing ? (
               <div className="flex-1 flex flex-col p-4">
                 <h3 className="text-sm font-bold text-slate-400 mb-4 flex items-center gap-2">
