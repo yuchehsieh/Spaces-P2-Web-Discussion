@@ -8,14 +8,24 @@ export interface SiteNode {
   isOpen?: boolean; // Initial state
 }
 
+export interface VLMData {
+  captureUrl: string;
+  fullSceneUrl: string;
+  features: string[];
+  gender?: 'male' | 'female';
+  siteName: string;
+  timestamp: string;
+}
+
 export interface SecurityEvent {
   id: string;
   timestamp: string;
-  type: 'alert' | 'info' | 'warning';
+  type: 'alert' | 'info' | 'warning' | 'vlm';
   message: string;
   location: string;
   sensorId?: string; // Associated sensor ID
   linkedSensorId?: string; // For linked events
+  vlmData?: VLMData; // Data for VLM events
 }
 
 export interface SensorPosition {

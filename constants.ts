@@ -70,15 +70,6 @@ export const SITE_TREE_DATA: SiteNode[] = [
               { id: 'w-bullet', label: '槍型攝影機', type: 'device', deviceType: 'camera' },
             ],
           },
-          {
-            id: 'manager-office',
-            label: '部長室',
-            type: 'zone',
-            isOpen: true,
-            children: [
-              { id: 'm-door', label: '門磁', type: 'device', deviceType: 'door' },
-            ],
-          },
         ],
       },
     ],
@@ -86,11 +77,47 @@ export const SITE_TREE_DATA: SiteNode[] = [
 ];
 
 export const MOCK_EVENTS: SecurityEvent[] = [
-  { id: 'e1', timestamp: '17:00:40', type: 'alert', message: 'Motion Detected', location: '商研中心 - IPC', sensorId: 'c-ipc-1' },
-  { id: 'e2', timestamp: '16:58:12', type: 'info', message: 'Door Normal', location: '倉庫 - 門磁', sensorId: 'w-door' },
-  { id: 'e3', timestamp: '16:55:00', type: 'alert', message: 'Linked: PIR Triggered Recording', location: '商研中心', sensorId: 'c-pir', linkedSensorId: 'c-ipc-2' },
-  { id: 'e4', timestamp: '16:45:00', type: 'info', message: 'System Check', location: '中山駐區' },
-  { id: 'e5', timestamp: '16:30:22', type: 'alert', message: 'Line Cross', location: '大辦公區 - IPC', sensorId: 'o-ipc' },
+  { 
+    id: 'e-vlm-1', 
+    timestamp: '16:55:00', 
+    type: 'vlm', 
+    message: 'Linked: PIR Triggered', 
+    location: '商研中心', 
+    sensorId: 'c-pir', 
+    linkedSensorId: 'c-ipc-2',
+    vlmData: {
+      captureUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/VLM-Male.png?raw=true',
+      fullSceneUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/VLM-Male-Full.png?raw=true',
+      features: ['青年'],
+      gender: 'male',
+      siteName: '櫃台',
+      timestamp: '2025-12-18 15:46:53'
+    }
+  },
+  { 
+    id: 'e-sos-1', 
+    timestamp: '17:15:30', 
+    type: 'alert', 
+    message: 'SOS 緊急救助請求', 
+    location: '大辦公區 - 門口緊急按鈕', 
+    sensorId: 'o-btn' 
+  },
+  { 
+    id: 'e-normal-cam', 
+    timestamp: '17:05:22', 
+    type: 'alert', 
+    message: '越界偵測告警', 
+    location: '總公司 - 商研中心', 
+    sensorId: 'c-ipc-1' 
+  },
+  { 
+    id: 'e-info-1', 
+    timestamp: '16:40:15', 
+    type: 'info', 
+    message: '系統日常巡檢完成', 
+    location: '中山處', 
+    sensorId: 'z-reader'
+  }
 ];
 
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
