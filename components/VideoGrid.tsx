@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { GridSize } from '../types';
 import { X, Circle } from 'lucide-react';
@@ -16,6 +17,13 @@ interface VideoGridProps {
   onToggleRecording: (index: number) => void;
 }
 
+const MOCK_CAMERA_IMAGES = [
+  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_1.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_2.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_3.jpg?raw=true',
+  'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/mock_camera_4.jpg?raw=true',
+];
+
 const VideoGrid: React.FC<VideoGridProps> = ({ 
   gridSize, 
   activeSlots, 
@@ -24,6 +32,16 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   onToggleRecording 
 }) => {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Helper to pick a consistent image for a given camera ID
+  const getCameraImage = (id: string) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % MOCK_CAMERA_IMAGES.length;
+    return MOCK_CAMERA_IMAGES[index];
+  };
 
   // Generate placeholders based on grid size
   const slots = Array.from({ length: gridSize }, (_, i) => i);
@@ -83,7 +101,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
               >
                 {/* Simulated Live Feed */}
                 <img 
-                  src={`https://picsum.photos/seed/${slotData.id}/800/600`}
+                  src={getCameraImage(slotData.id)}
                   alt="Camera Feed" 
                   className="w-full h-full object-cover pointer-events-none"
                 />

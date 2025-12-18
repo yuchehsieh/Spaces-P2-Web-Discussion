@@ -8,7 +8,7 @@ import SecurityTab from './components/SecurityTab';
 import MapTab from './components/MapTab'; 
 import { SITE_TREE_DATA, MOCK_EVENTS } from './constants';
 import { MainNavType, SiteNode, TabType, GridSize, SecurityEvent } from './types';
-import { Grid2x2, Grid3x3, Square, Globe, User as UserIcon } from 'lucide-react';
+import { Grid2x2, Grid3x3, Square, User as UserIcon } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeNav, setActiveNav] = useState<MainNavType>('security-center');
@@ -77,20 +77,31 @@ const App: React.FC = () => {
       <header className="h-14 bg-[#004a99] flex items-center justify-between px-4 border-b border-slate-800 shrink-0 z-30 shadow-md">
          {/* Left: Logo */}
          <div className="flex items-center">
-            <div className="font-bold text-2xl tracking-wider text-white border-2 border-white/20 px-2 py-0.5 rounded bg-blue-800/50">
-              SKS
+            <div className="flex items-center justify-center p-1">
+               <img 
+                 src="https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/LOGO_SKS_NEW2.png?raw=true" 
+                 alt="SKS Logo" 
+                 className="h-9 w-auto object-contain"
+                 onError={(e) => {
+                    // Fallback to text if image fails to load
+                    (e.target as any).style.display = 'none';
+                    const parent = (e.target as any).parentElement;
+                    if (parent) {
+                        const textLogo = document.createElement('div');
+                        textLogo.className = "font-bold text-xl text-white";
+                        textLogo.innerText = "SKS";
+                        parent.appendChild(textLogo);
+                    }
+                 }}
+               />
             </div>
             <span className="ml-3 text-sm text-blue-200 font-medium tracking-wide opacity-80 border-l border-blue-400/30 pl-3">
-              Security Dashboard
+              Security Dashboard Draft
             </span>
          </div>
 
          {/* Right: User Info */}
          <div className="flex items-center space-x-6 text-sm">
-             <div className="flex items-center text-blue-100/80">
-                <Globe size={16} className="mr-2" />
-                <span className="font-mono">IP: 192.168.1.100</span>
-             </div>
              <div className="flex items-center text-white font-medium bg-blue-800/50 px-3 py-1.5 rounded-full border border-blue-700">
                 <UserIcon size={16} className="mr-2" />
                 <span>Admin</span>
