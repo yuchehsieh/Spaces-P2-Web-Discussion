@@ -406,16 +406,7 @@ const SecurityTab: React.FC = () => {
     const result: GlobalActionResult = { type: 'arm', successCount: 0, failureCount: 0, failures: [] };
     
     zones.forEach(zone => {
-        // DEMO 邏輯：如果是在中山處，且分區是倉庫 (warehouse)，強制失敗
-        if (siteId === 'zhongshan-branch' && zone.id === 'warehouse') {
-            result.failureCount++;
-            result.failures.push({ 
-                zone: zone.label, 
-                reasons: ['倉庫 - 門磁 處於開啟狀態', '倉庫 - 槍型攝影機 離線'] 
-            });
-            return;
-        }
-
+        // 統一透過 checkZoneSafety 函數進行動態安全檢查，不再對中山處進行強制失敗設定
         const check = checkZoneSafety(zone.id, zones);
         if (check.safe) {
             newArmState[zone.id] = 'armed';

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Server, Bell, User, Shield } from 'lucide-react';
+import { Server, Bell, User, Shield, Settings } from 'lucide-react';
 import { MainNavType } from '../types';
 
 interface SidebarProps {
@@ -13,13 +13,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeNav, setActiveNav }) => {
     { id: 'security-center', label: '安防\n中心', icon: <Shield size={20} /> },
     { id: 'device-center', label: '設備\n中心', icon: <Server size={20} /> },
     { id: 'event-center', label: '事件\n中心', icon: <Bell size={20} /> },
-  ];
-
-  const bottomItems: { id: MainNavType; label: string; icon: React.ReactNode }[] = [
     { id: 'account-center', label: '帳號\n中心', icon: <User size={20} /> },
   ];
 
-  // Fix: Explicitly type NavButton as React.FC to allow 'key' prop when used in .map()
+  const bottomItems: { id: MainNavType; label: string; icon: React.ReactNode }[] = [
+    { id: 'setting-center', label: '設定', icon: <Settings size={20} /> },
+  ];
+
   const NavButton: React.FC<{ item: typeof topItems[0] }> = ({ item }) => (
     <button
       onClick={() => setActiveNav(item.id)}

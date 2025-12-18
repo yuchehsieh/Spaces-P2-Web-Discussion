@@ -120,6 +120,103 @@ export const MOCK_EVENTS: SecurityEvent[] = [
   }
 ];
 
+export const MOCK_SYSTEM_LOGS = [
+  { id: 'l1', timestamp: '14:02:11', level: 'INFO', message: 'User login successful (Admin)' },
+  { id: 'l2', timestamp: '13:58:22', level: 'WARN', message: 'Camera 2 high latency detected' },
+  { id: 'l3', timestamp: '13:55:01', level: 'INFO', message: 'System check complete' },
+  { id: 'l4', timestamp: '13:50:00', level: 'INFO', message: 'Cloud sync started' },
+  { id: 'l5', timestamp: '12:30:15', level: 'ERROR', message: 'Database connection failed at Node-B' },
+  { id: 'l6', timestamp: '11:15:44', level: 'INFO', message: 'Firmware update pushed to 12 devices' },
+  { id: 'l7', timestamp: '10:05:12', level: 'WARN', message: 'Storage capacity reaching 90% threshold' },
+];
+
+export const MOCK_AUTHORIZATIONS = [
+  {
+    id: 'auth-1',
+    granter: 'AndyChen',
+    email: 'andychen.1973@gmail.com',
+    units: ['總公司', '商研中心', '大辦公區'],
+    validity: 'Permanent',
+    grantDate: '2024-05-20',
+    type: 'Personal',
+    permissions: {
+      enabled: true,
+      permanent: true,
+      allowResharing: true,
+      security: {
+        view: true,
+        settings: true,
+        schedule: true,
+        cardEdit: false,
+        contactEdit: false
+      },
+      camera: {
+        view: true,
+        settings: true,
+        ptz: true,
+        playback: true
+      },
+      events: true
+    }
+  },
+  {
+    id: 'auth-2',
+    granter: '新光保全-中山處',
+    email: 'service.zs@sks.com.tw',
+    units: ['中山駐區', '倉庫'],
+    validity: '2025-12-31',
+    grantDate: '2024-11-15',
+    type: 'Corporate',
+    permissions: {
+      enabled: true,
+      permanent: false,
+      allowResharing: false,
+      security: {
+        view: true,
+        settings: false,
+        schedule: false,
+        cardEdit: false,
+        contactEdit: false
+      },
+      camera: {
+        view: true,
+        settings: false,
+        ptz: false,
+        playback: true
+      },
+      events: true
+    }
+  },
+  {
+    id: 'auth-3',
+    granter: 'System Admin',
+    email: 'system.admin@sks.com.tw',
+    units: ['全域監控節點', '緊急應變中心'],
+    validity: 'Permanent',
+    grantDate: '2023-01-01',
+    type: 'System',
+    permissions: {
+      enabled: true,
+      permanent: true,
+      allowResharing: true,
+      security: {
+        view: true,
+        settings: true,
+        schedule: true,
+        cardEdit: true,
+        contactEdit: true
+      },
+      camera: {
+        view: true,
+        settings: true,
+        ptz: true,
+        playback: true
+      },
+      events: true
+    }
+  }
+];
+
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
   {
     siteId: 'hq',
