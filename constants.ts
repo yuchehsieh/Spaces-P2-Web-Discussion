@@ -1,5 +1,5 @@
 
-import { SiteNode, SecurityEvent } from './types';
+import { SiteNode, SecurityEvent, FloorPlanData } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
   {
@@ -20,10 +20,10 @@ export const SITE_TREE_DATA: SiteNode[] = [
             type: 'zone',
             isOpen: true,
             children: [
-              { id: 'c-ipc-1', label: 'IPC', type: 'device', deviceType: 'camera' },
-              { id: 'c-ipc-2', label: 'IPC', type: 'device', deviceType: 'camera' },
+              { id: 'c-ipc-1', label: 'IPC-01', type: 'device', deviceType: 'camera' },
+              { id: 'c-ipc-2', label: 'IPC-02', type: 'device', deviceType: 'camera' },
               { id: 'c-webcam', label: 'Web Cam', type: 'device', deviceType: 'camera' },
-              { id: 'c-pir', label: 'PIR', type: 'device', deviceType: 'sensor' },
+              { id: 'c-pir', label: 'PIR 感應器', type: 'device', deviceType: 'sensor' },
             ],
           },
           {
@@ -32,9 +32,9 @@ export const SITE_TREE_DATA: SiteNode[] = [
             type: 'zone',
             isOpen: false,
             children: [
-              { id: 'o-pir', label: 'PIR', type: 'device', deviceType: 'sensor' },
+              { id: 'o-pir', label: 'PIR-Office', type: 'device', deviceType: 'sensor' },
               { id: 'o-webcam', label: 'Web Cam', type: 'device', deviceType: 'camera' },
-              { id: 'o-ipc', label: 'IPC', type: 'device', deviceType: 'camera' },
+              { id: 'o-ipc', label: 'IPC-Main', type: 'device', deviceType: 'camera' },
               { id: 'o-door', label: '門磁', type: 'device', deviceType: 'door' },
               { id: 'o-btn', label: '緊急按鈕', type: 'device', deviceType: 'emergency' },
             ],
@@ -86,9 +86,22 @@ export const SITE_TREE_DATA: SiteNode[] = [
 ];
 
 export const MOCK_EVENTS: SecurityEvent[] = [
-  { id: 'e1', timestamp: '17:00:40', type: 'alert', message: 'Motion Detected', location: '商研中心 - IPC' },
-  { id: 'e2', timestamp: '16:58:12', type: 'info', message: 'Door Normal', location: '倉庫 - 門磁' },
-  { id: 'e3', timestamp: '16:45:00', type: 'info', message: 'System Check', location: '中山駐區' },
-  { id: 'e4', timestamp: '16:30:22', type: 'alert', message: 'Line Cross', location: '大辦公區 - IPC' },
-  { id: 'e5', timestamp: '16:15:10', type: 'info', message: 'User Login', location: 'Admin' },
+  { id: 'e1', timestamp: '17:00:40', type: 'alert', message: 'Motion Detected', location: '商研中心 - IPC', sensorId: 'c-ipc-1' },
+  { id: 'e2', timestamp: '16:58:12', type: 'info', message: 'Door Normal', location: '倉庫 - 門磁', sensorId: 'w-door' },
+  { id: 'e3', timestamp: '16:55:00', type: 'alert', message: 'Linked: PIR Triggered Recording', location: '商研中心', sensorId: 'c-pir', linkedSensorId: 'c-ipc-2' },
+  { id: 'e4', timestamp: '16:45:00', type: 'info', message: 'System Check', location: '中山駐區' },
+  { id: 'e5', timestamp: '16:30:22', type: 'alert', message: 'Line Cross', location: '大辦公區 - IPC', sensorId: 'o-ipc' },
+];
+
+export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
+  {
+    siteId: 'hq',
+    imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Web-Discussion/blob/main/images/Floor%20Plan.png?raw=true',
+    sensors: [
+      { id: 'c-ipc-1', x: 25, y: 30 },
+      { id: 'c-ipc-2', x: 70, y: 25 },
+      { id: 'c-pir', x: 45, y: 45 },
+      { id: 'o-door', x: 15, y: 80 },
+    ]
+  }
 ];

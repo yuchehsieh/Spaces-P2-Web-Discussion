@@ -14,6 +14,20 @@ export interface SecurityEvent {
   type: 'alert' | 'info' | 'warning';
   message: string;
   location: string;
+  sensorId?: string; // Associated sensor ID
+  linkedSensorId?: string; // For linked events
+}
+
+export interface SensorPosition {
+  id: string;
+  x: number; // percentage 0-100
+  y: number; // percentage 0-100
+}
+
+export interface FloorPlanData {
+  siteId: string;
+  imageUrl: string;
+  sensors: SensorPosition[];
 }
 
 export type GridSize = 1 | 4 | 9 | 16;
