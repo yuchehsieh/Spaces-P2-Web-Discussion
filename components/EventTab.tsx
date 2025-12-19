@@ -53,6 +53,9 @@ interface CustomEventRule {
   type: 'default' | 'user';
   category: 'battery' | 'signal' | 'custom' | 'vlm';
   description: string;
+  notify: ('app' | 'email')[];
+  linkageLevels: { level: 2 | 3; asset: 'camera' | 'energy' | 'sensor' }[];
+  hasWebhook: boolean;
 }
 
 const EventTab: React.FC = () => {
@@ -120,7 +123,10 @@ const EventTab: React.FC = () => {
       creator: 'Admin', 
       type: 'default',
       category: 'battery',
-      description: '當無線感測器電量低於 20% 時自動觸發通知。'
+      description: '當無線感測器電量低於 20% 時自動觸發通知。',
+      notify: ['app', 'email'],
+      linkageLevels: [],
+      hasWebhook: false
     },
     { 
       id: 'rule-offline', 
@@ -129,7 +135,25 @@ const EventTab: React.FC = () => {
       creator: 'Admin', 
       type: 'default', 
       category: 'signal',
-      description: '當設備與閘道器失去連線超過 5 分鐘時觸發。'
+      description: '當設備與閘道器失去連線超過 5 分鐘時觸發。',
+      notify: ['app', 'email'],
+      linkageLevels: [],
+      hasWebhook: false
+    },
+    {
+      id: 'rule-extreme-val',
+      name: '超出感測器正常值',
+      isEnabled: true,
+      creator: 'User',
+      type: 'user',
+      category: 'custom',
+      description: '當感測器回報數值超出安全基準範圍時觸發。',
+      notify: ['app', 'email'],
+      linkageLevels: [
+        { level: 2, asset: 'camera' },
+        { level: 3, asset: 'energy' }
+      ],
+      hasWebhook: false
     }
   ]);
 
@@ -225,8 +249,8 @@ const EventTab: React.FC = () => {
         </div>
         <nav className="space-y-2">
           {[
-            { id: 'list', label: '事件列表', icon: <LayoutList size={18} />, desc: 'Event Logs & History' },
-            { id: 'settings', label: '自訂事件設定', icon: <Settings2 size={18} />, desc: 'Custom Rules' },
+            { id: 'list', label: '歷史事件紀錄', icon: <LayoutList size={18} />, desc: 'Event Logs & History' },
+            { id: 'settings', label: '管理事件', icon: <Settings2 size={18} />, desc: 'Custom Rules' },
           ].map(item => (
             <button 
               key={item.id}
@@ -250,7 +274,7 @@ const EventTab: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#050914] p-10">
-        {/* --- 事件列表頁面 --- */}
+        {/* --- 歷史事件紀錄頁面 --- */}
         {activeSubNav === 'list' && !viewingEventId && (
           <div className="max-w-[1500px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500">
              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-12 pb-8 border-b border-slate-800/50">
@@ -396,7 +420,6 @@ const EventTab: React.FC = () => {
              </div>
 
              <div className="flex flex-1 gap-8 min-h-0">
-                {/* Sidebar Section (Metadata) */}
                 <div className="w-80 shrink-0 space-y-8 overflow-y-auto custom-scrollbar pr-2">
                    <div className="bg-[#111827] border border-slate-800 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 blur-[30px] rounded-full"></div>
@@ -547,7 +570,7 @@ const EventTab: React.FC = () => {
                               <span className="text-[10px] text-slate-600 font-black uppercase mt-1.5 block tracking-widest">DEC 18, 2025</span>
                            </div>
                            <div className="p-8 bg-[#162032]/60 border border-slate-700/50 rounded-[2.5rem] text-left group hover:border-blue-500/40 transition-all shadow-xl backdrop-blur-sm">
-                              <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <span className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                                  <Server size={14} className="text-blue-500" /> 來源設備 ID
                               </span>
                               <div className="text-3xl font-mono font-black text-slate-100 tracking-wider">{activeEvent.sensorId || 'N/A'}</div>
@@ -601,12 +624,12 @@ const EventTab: React.FC = () => {
           </div>
         )}
 
-        {/* --- 自訂事件設定頁面 --- */}
+        {/* --- 管理事件頁面 --- */}
         {activeSubNav === 'settings' && !isCreating && (
           <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500">
              <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12 pb-8 border-b border-slate-800/50">
                 <div>
-                   <h1 className="text-4xl font-black text-white tracking-tighter mb-2">自訂事件設定 <span className="text-blue-600">.</span></h1>
+                   <h1 className="text-4xl font-black text-white tracking-tighter mb-2">管理事件 <span className="text-blue-600">.</span></h1>
                    <p className="text-sm text-slate-500 font-medium">根據個人需求自訂感測器通知規則</p>
                 </div>
                 <button 
@@ -623,6 +646,9 @@ const EventTab: React.FC = () => {
                       <tr className="bg-black/20 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
                          <th className="px-8 py-6">Event Type</th>
                          <th className="px-8 py-6">Rule Name</th>
+                         <th className="px-8 py-6">Notify</th>
+                         <th className="px-8 py-6">連動層級</th>
+                         <th className="px-8 py-6">Webhook</th>
                          <th className="px-8 py-6">Enabled</th>
                          <th className="px-8 py-6">Creator</th>
                          <th className="px-8 py-6 text-right">Actions</th>
@@ -642,6 +668,40 @@ const EventTab: React.FC = () => {
                            </td>
                            <td className="px-8 py-6"><span className="text-base font-black text-white">{rule.name}</span></td>
                            <td className="px-8 py-6">
+                              <div className="flex items-center gap-2">
+                                 {rule.notify.includes('app') && (
+                                   <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 border border-blue-500/20" title="APP通知">
+                                     <Smartphone size={14}/>
+                                   </div>
+                                 )}
+                                 {rule.notify.includes('email') && (
+                                   <div className="p-2 bg-white/5 rounded-lg text-slate-400 border border-white/10" title="EMAIL通知">
+                                     <Mail size={14}/>
+                                   </div>
+                                 )}
+                              </div>
+                           </td>
+                           <td className="px-8 py-6">
+                              <div className="flex items-center gap-3">
+                                 {rule.linkageLevels.length === 0 ? (
+                                   <span className="text-[10px] text-slate-700 font-bold italic uppercase tracking-widest">無連動</span>
+                                 ) : (
+                                   rule.linkageLevels.map((lnk, idx) => (
+                                      <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/80 rounded-lg border border-slate-700 shadow-sm group/lnk">
+                                         <span className="text-[9px] font-black text-blue-400 tracking-tighter">LV{lnk.level}</span>
+                                         {lnk.asset === 'camera' ? <Video size={11} className="text-slate-400"/> : lnk.asset === 'energy' ? <Zap size={11} className="text-amber-400"/> : <Cpu size={11} className="text-slate-400"/>}
+                                      </div>
+                                   ))
+                                 )}
+                              </div>
+                           </td>
+                           <td className="px-8 py-6">
+                              <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${rule.hasWebhook ? 'text-blue-500' : 'text-slate-700'}`}>
+                                 <Webhook size={14} className={rule.hasWebhook ? 'animate-pulse' : ''}/>
+                                 {rule.hasWebhook ? '有' : '無'}
+                              </div>
+                           </td>
+                           <td className="px-8 py-6">
                               {rule.type === 'default' ? (
                                 <div className="flex items-center gap-2">
                                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -651,8 +711,8 @@ const EventTab: React.FC = () => {
                                 <div className={`relative inline-flex items-center h-6 w-11 rounded-full ${rule.isEnabled ? 'bg-blue-600' : 'bg-slate-700'}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${rule.isEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></div>
                               )}
                            </td>
-                           <td className="px-8 py-6"><span className="text-sm font-bold text-slate-300">{rule.creator}</span></td>
-                           <td className="px-8 py-6 text-right"><MoreVertical className="inline-block text-slate-600"/></td>
+                           <td className="px-8 py-6"><span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${rule.creator === 'Admin' ? 'bg-blue-600/10 text-blue-400 border-blue-500/20' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>{rule.creator}</span></td>
+                           <td className="px-8 py-6 text-right"><MoreVertical className="inline-block text-slate-600 hover:text-white transition-colors cursor-pointer"/></td>
                         </tr>
                       ))}
                    </tbody>
