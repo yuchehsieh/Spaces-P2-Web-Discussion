@@ -176,9 +176,12 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </div>
+            
+            {/* 4. Event Presentation Area (Right) - Only visible in security center */}
+            <EventPanel events={events} onClearEvents={handleClearEvents} />
           </>
         ) : (
-          /* Real content for other navigation sections */
+          /* Real content for other navigation sections - EventPanel is hidden here, allowing flex-1 to expand */
           <div className="flex-1 flex overflow-hidden">
              {activeNav === 'setting-center' ? (
                 <SettingTab />
@@ -195,9 +198,6 @@ const App: React.FC = () => {
              )}
           </div>
         )}
-
-        {/* 4. Event Presentation Area (Right) */}
-        <EventPanel events={events} onClearEvents={handleClearEvents} />
       </div>
 
     </div>
