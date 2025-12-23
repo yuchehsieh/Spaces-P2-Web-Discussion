@@ -15,7 +15,13 @@ import {
   Maximize,
   Download,
   Bell,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Fingerprint,
+  Info,
+  Cpu,
+  Activity,
+  Layers,
+  MapPin
 } from 'lucide-react';
 import { SecurityEvent, SiteNode } from '../types';
 import { SITE_TREE_DATA } from '../constants';
@@ -31,11 +37,12 @@ interface EventPanelProps {
 interface ModalMetadata {
   url: string;
   title: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'face';
   location: string;
   timestamp: string;
   deviceId?: string;
   vlmFeatures?: string[];
+  event: SecurityEvent;
 }
 
 const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSiteId, selectedEventId, onEventSelect }) => {
@@ -180,7 +187,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
               `}
             >
               {/* Header Info Area */}
-              <div className="p-3 pb-[52px] flex flex-col"> {/* 預先保留底部 52px 空間給按鈕 */}
+              <div className="p-3 pb-[52px] flex flex-col">
                 <div className="flex items-start space-x-3">
                    <div className={`mt-0.5 flex-shrink-0 rounded-xl p-2.5 transition-all ${
                        isSos ? 'bg-red-600 text-white shadow-lg shadow-red-900/40' :
@@ -211,7 +218,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                    </div>
                 </div>
 
-                {/* --- 詳情內容 (根據選中狀態展開) --- */}
+                {/* --- 詳情內容 --- */}
                 
                 {/* VLM 事件核心資訊 */}
                 {isVlm && event.vlmData && (
@@ -228,8 +235,24 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                         <div className="p-3">
                            <p className="text-[11px] text-slate-500 font-bold mb-3">目前站點-櫃台</p>
                            <div className="flex items-start gap-4">
-                              <div className="w-20 h-24 bg-black rounded border border-slate-600 overflow-hidden shrink-0">
-                                 <img src={event.vlmData.captureUrl} className="w-full h-full object-cover" />
+                              <div className="w-20 h-24 bg-black rounded border border-slate-600 overflow-hidden shrink-0 relative group/face">
+                                 <img src={event.vlmData.captureUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover/face:scale-110" />
+                                 <button 
+                                   onClick={(e) => {
+                                      e.stopPropagation();
+                                      setModalContent({
+                                          url: event.vlmData!.captureUrl,
+                                          title: "AI 人臉特寫存證",
+                                          type: 'face',
+                                          location: event.location,
+                                          timestamp: event.timestamp,
+                                          event: event
+                                      });
+                                   }}
+                                   className="absolute top-1 right-1 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-md opacity-0 group-hover/face:opacity-100 transition-all z-20"
+                                 >
+                                    <Maximize size={12} />
+                                 </button>
                               </div>
                               <div className="flex flex-wrap gap-2 pt-1">
                                  <span className="px-3 py-1 bg-[#2d3a54] text-slate-200 text-[10px] font-bold rounded border border-slate-600">青年</span>
@@ -244,12 +267,28 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                                 <div className="h-px bg-slate-700/50 -mx-3 my-4"></div>
                                 <div className="relative group/vid overflow-hidden rounded-lg border border-slate-700/50 aspect-video bg-black">
                                    <img 
-                                     src={getCameraThumbnail(cameraId)} 
+                                     src={event.vlmData.fullSceneUrl || getCameraThumbnail(cameraId)} 
                                      alt="Full Scene" 
-                                     className="w-full h-full object-cover opacity-60" 
+                                     className="w-full h-full object-cover opacity-60 transition-transform duration-700 group-hover/vid:scale-110" 
                                    />
-                                   <div className="absolute inset-0 flex items-center justify-center">
-                                      <PlayCircle size={40} className="text-white/60 drop-shadow-2xl" />
+                                   <button 
+                                     onClick={(e) => {
+                                        e.stopPropagation();
+                                        setModalContent({
+                                            url: event.vlmData!.fullSceneUrl || getCameraThumbnail(cameraId),
+                                            title: "全景連動回放",
+                                            type: 'video',
+                                            location: event.location,
+                                            timestamp: event.timestamp,
+                                            event: event
+                                        });
+                                     }}
+                                     className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-lg opacity-0 group-hover/vid:opacity-100 transition-all z-20"
+                                   >
+                                      <Maximize size={16} />
+                                   </button>
+                                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                      <PlayCircle size={40} className="text-white/60 drop-shadow-2xl transition-transform duration-300 group-hover/vid:scale-125" />
                                    </div>
                                 </div>
                              </div>
@@ -259,24 +298,40 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                   </div>
                 )}
 
-                {/* 非 VLM 影像事件 (如越界偵測預設顯示影片縮圖) */}
+                {/* 非 VLM 影像事件 */}
                 {!isVlm && hasVideo && (
                    <div className={`mt-3 space-y-3 animate-in zoom-in-95 duration-200 ${!isLineCrossing && !isSelected ? 'hidden' : 'block'}`}>
                       <div className="relative group/vid overflow-hidden rounded-lg border border-slate-700/50 aspect-video bg-black shadow-inner">
                         <img 
                           src={getCameraThumbnail(cameraId)} 
                           alt="Event Evidence" 
-                          className="w-full h-full object-cover opacity-70" 
+                          className="w-full h-full object-cover opacity-70 transition-transform duration-700 group-hover/vid:scale-110" 
                         />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                           <PlayCircle size={48} className="text-white/80 drop-shadow-2xl" />
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setModalContent({
+                                    url: getCameraThumbnail(cameraId),
+                                    title: event.message,
+                                    type: 'video',
+                                    location: event.location,
+                                    timestamp: event.timestamp,
+                                    event: event
+                                });
+                            }}
+                            className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-lg opacity-0 group-hover/vid:opacity-100 transition-all z-20"
+                        >
+                            <Maximize size={16} />
+                        </button>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                           <PlayCircle size={48} className="text-white/80 drop-shadow-2xl transition-transform duration-300 group-hover/vid:scale-125" />
                         </div>
                       </div>
                    </div>
                 )}
               </div>
 
-              {/* --- 操作按鈕區 (浮動於底部並預留空間) --- */}
+              {/* --- 操作按鈕區 --- */}
               <div className={`absolute bottom-0 left-0 right-0 p-3 flex items-center justify-end space-x-2 bg-[#1e293b]/60 backdrop-blur-sm border-t border-slate-700/30 transition-all duration-300 translate-y-2 opacity-0
                 ${isSelected ? 'translate-y-0 opacity-100' : 'group-hover:translate-y-0 group-hover:opacity-100'}
               `}>
@@ -310,41 +365,169 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
         SKS Intelligence Node
       </div>
 
-      {/* --- 全域影像放大彈窗 --- */}
+      {/* --- 精確對齊附件的專業存證放大彈窗 --- */}
       {modalContent && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 sm:p-10 animate-in fade-in duration-300">
-           <div className="relative max-w-6xl w-full bg-[#1e293b] border border-slate-700 rounded-2xl shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-full ring-1 ring-white/10">
-              <div className="p-5 border-b border-slate-700 flex items-center justify-between bg-[#111827] shrink-0">
-                 <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/30">
-                        {modalContent.type === 'video' ? <Monitor className="text-blue-400" size={24} /> : <ImageIcon className="text-orange-400" size={24} />}
+           <div className="relative max-w-7xl w-full bg-[#111827] border border-slate-800 rounded-2xl shadow-[0_0_120px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5">
+              
+              {/* Header Section */}
+              <div className="p-6 border-b border-slate-800/50 flex items-center justify-between bg-[#0f172a] shrink-0">
+                 <div className="flex items-center gap-5">
+                    <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-inner">
+                        {modalContent.type === 'video' ? <Monitor className="text-blue-400" size={28} /> : <ImageIcon className="text-orange-400" size={28} />}
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-white tracking-tight uppercase">{modalContent.title}</h3>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-500 font-bold tracking-widest uppercase mt-0.5">
-                           <span className="flex items-center gap-1">HQ-Primary</span>
-                           <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
-                           <span className="flex items-center gap-1">{modalContent.timestamp}</span>
+                        <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic">{modalContent.title}</h3>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500 font-bold tracking-widest uppercase mt-1">
+                           <span className="flex items-center gap-1.5"><MapPin size={14} className="text-blue-500"/>{modalContent.location}</span>
+                           <span className="w-1.5 h-1.5 bg-slate-700 rounded-full"></span>
+                           <span className="flex items-center gap-1.5"><Clock size={14} className="text-blue-500"/>2025-12-18 {modalContent.timestamp}</span>
                         </div>
                     </div>
                  </div>
-                 <button onClick={() => setModalContent(null)} className="p-2.5 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all">
-                    <X size={24} />
+                 <button onClick={() => setModalContent(null)} className="p-3 hover:bg-red-500/20 rounded-2xl text-slate-500 hover:text-red-500 transition-all">
+                    <X size={32} />
                  </button>
               </div>
               
               <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 bg-black flex flex-col relative items-center justify-center">
-                   <img src={modalContent.url} className="max-w-full max-h-[70vh] object-contain shadow-2xl" />
+                {/* Left Metadata Panel */}
+                <div className="w-72 bg-[#0b1121] border-r border-slate-800/50 p-6 flex flex-col gap-10 overflow-y-auto custom-scrollbar shrink-0">
+                   
+                   <div className="space-y-5">
+                      <div className="flex items-center gap-3 text-slate-400">
+                         <Fingerprint size={18} className="text-blue-500" />
+                         <h4 className="text-[11px] font-black uppercase tracking-widest">數位存證證書</h4>
+                      </div>
+                      <div className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-4">
+                         <div className="space-y-1">
+                            <span className="text-[9px] text-slate-600 font-black uppercase tracking-widest">數位簽章 (SHA-256)</span>
+                            <p className="text-[10px] text-slate-400 font-mono break-all leading-tight">f7a8b9c0d1e2f3a4b5c6d7e8f9a0b...</p>
+                         </div>
+                         <div className="space-y-1">
+                            <span className="text-[9px] text-slate-600 font-black uppercase tracking-widest">存證節點</span>
+                            <p className="text-[11px] text-slate-300 font-black">SKS_MAIN_HQ_01</p>
+                         </div>
+                         <div className="pt-2">
+                            <div className="h-1.5 bg-green-500/10 rounded-full overflow-hidden mb-2">
+                               <div className="w-full h-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]"></div>
+                            </div>
+                            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">VERIFIED</span>
+                         </div>
+                      </div>
+                   </div>
+
+                   <div className="space-y-5">
+                      <div className="flex items-center gap-3 text-slate-400">
+                         <Info size={18} className="text-blue-500" />
+                         <h4 className="text-[11px] font-black uppercase tracking-widest">回放細節</h4>
+                      </div>
+                      <div className="space-y-4 px-1">
+                         <div className="flex justify-between items-center text-[11px] font-bold">
+                            <span className="text-slate-600 uppercase tracking-widest">設備標籤</span>
+                            <span className="text-slate-200 font-mono">{modalContent.event.sensorId || 'CAM-NODE-01'}</span>
+                         </div>
+                         <div className="flex justify-between items-center text-[11px] font-bold">
+                            <span className="text-slate-600 uppercase tracking-widest">解析度</span>
+                            <span className="text-slate-200">1920x1080</span>
+                         </div>
+                         <div className="flex justify-between items-center text-[11px] font-bold">
+                            <span className="text-slate-600 uppercase tracking-widest">幀率</span>
+                            <span className="text-slate-200">60 FPS</span>
+                         </div>
+                         <div className="flex justify-between items-center text-[11px] font-bold">
+                            <span className="text-slate-600 uppercase tracking-widest">回放長度</span>
+                            <span className="text-blue-400 font-mono">00:15 / 02:00</span>
+                         </div>
+                      </div>
+                   </div>
+
+                   {modalContent.event.vlmData && (
+                     <div className="space-y-5 pt-2 border-t border-slate-800/50">
+                        <div className="flex items-center gap-3 text-slate-400">
+                           <Cpu size={18} className="text-orange-500" />
+                           <h4 className="text-[11px] font-black uppercase tracking-widest">AI 識標摘要</h4>
+                        </div>
+                        <div className="flex flex-wrap gap-2 px-1">
+                           <span className="px-3 py-1.5 bg-orange-900/20 text-orange-400 text-[10px] font-black rounded-lg border border-orange-500/30 uppercase tracking-widest">青年</span>
+                        </div>
+                     </div>
+                   )}
+                </div>
+
+                {/* Main Content Area */}
+                <div className="flex-1 bg-black flex flex-col relative group/viewer">
+                   
+                   {/* Viewer Overlays */}
+                   <div className="absolute top-8 left-8 right-8 z-10 pointer-events-none flex justify-between items-start">
+                      <div className="flex flex-col gap-3">
+                         <div className="flex items-center gap-3 bg-red-600 px-5 py-2 rounded-lg text-[13px] font-black tracking-[0.25em] text-white shadow-2xl">
+                            <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
+                            REPLAY
+                         </div>
+                         <div className="text-[11px] text-white/40 font-mono tracking-tighter bg-black/50 px-4 py-1.5 rounded-lg border border-white/5 uppercase backdrop-blur-md">
+                            NODE_AUTH: PASS_SKS_EVIDENCE
+                         </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                         <div className="text-5xl font-mono font-black text-white tracking-widest drop-shadow-[0_4px_15px_rgba(0,0,0,1)]">
+                            {modalContent.timestamp}<span className="text-2xl opacity-50 ml-1">.483</span>
+                         </div>
+                         <div className="text-[11px] font-black text-white/40 tracking-[0.5em] uppercase mt-1">CAM_UTC+8_028</div>
+                      </div>
+                   </div>
+
+                   {/* Main Media */}
+                   <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+                      <img src={modalContent.url} className={`max-w-full max-h-full object-contain shadow-[0_0_100px_rgba(37,99,235,0.1)] transition-opacity duration-700 ${modalContent.type === 'face' ? 'w-2/3 scale-110' : 'w-full'}`} />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-500/5">
+                         <PlayCircle size={100} className="text-white/20 hover:text-white/40 cursor-pointer transition-all drop-shadow-2xl" />
+                      </div>
+                   </div>
+
+                   {/* Bottom Overlays */}
+                   <div className="absolute bottom-24 left-8 right-8 z-10 pointer-events-none flex justify-between items-end">
+                      <div className="flex gap-10">
+                         <div className="flex flex-col">
+                            <span className="text-[10px] text-white/30 font-black uppercase tracking-[0.2em] mb-1">Longitude</span>
+                            <span className="text-base text-white/80 font-mono font-bold">121.5796° E</span>
+                         </div>
+                         <div className="flex flex-col">
+                            <span className="text-[10px] text-white/30 font-black uppercase tracking-[0.2em] mb-1">Latitude</span>
+                            <span className="text-base text-white/80 font-mono font-bold">25.0629° N</span>
+                         </div>
+                      </div>
+                      <div className="p-4 bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl hover:bg-white/10 transition-colors pointer-events-auto cursor-pointer">
+                         <Layers size={24} className="text-white/50" />
+                      </div>
+                   </div>
+
+                   {/* Playback Control Bar */}
+                   <div className="h-1 bg-white/10 mx-8 mb-12 relative group/progress cursor-pointer rounded-full overflow-hidden">
+                      <div className="absolute top-0 left-0 h-full bg-blue-600 w-1/4 shadow-[0_0_20px_rgba(37,99,235,0.8)]"></div>
+                      <div className="absolute top-0 left-1/4 h-full bg-blue-400/20 w-1/2"></div>
+                   </div>
                 </div>
               </div>
               
-              <div className="p-6 border-t border-slate-700 flex justify-end items-center bg-[#111827] shrink-0">
-                 <div className="flex gap-4">
-                    <button className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition-all font-bold text-sm border border-slate-700 flex items-center justify-center gap-3 group">
-                      <Download size={18} className="text-blue-400 group-hover:translate-y-0.5 transition-transform" /> 下載數位存證
+              {/* Footer Section */}
+              <div className="p-8 border-t border-slate-800 flex justify-between items-center bg-[#0b1121] shrink-0">
+                 <div className="flex items-center gap-12 text-slate-500">
+                    <div className="flex items-center gap-3">
+                       <Activity size={20} className="text-green-500" />
+                       <span className="text-[11px] font-black uppercase tracking-widest">Bitrate: <span className="text-slate-300 font-bold ml-1">8.4 MBPS</span></span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <Shield size={20} className="text-blue-500" />
+                       <span className="text-[11px] font-black uppercase tracking-widest">Storage: <span className="text-slate-300 font-bold ml-1">SK-DATA-SEC-B</span></span>
+                    </div>
+                 </div>
+
+                 <div className="flex gap-5">
+                    <button className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all font-black text-sm border border-slate-700 flex items-center justify-center gap-4 group shadow-xl uppercase tracking-widest">
+                      <Download size={22} className="text-blue-400 group-hover:translate-y-0.5 transition-transform" /> 下載數位存證
                     </button>
-                    <button onClick={() => setModalContent(null)} className="px-10 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all font-black text-sm shadow-xl shadow-blue-900/40 uppercase tracking-widest">
+                    <button onClick={() => setModalContent(null)} className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all font-black text-sm shadow-2xl shadow-blue-900/40 uppercase tracking-widest ring-1 ring-white/10">
                        確認並關閉
                     </button>
                  </div>
