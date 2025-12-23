@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Server, Bell, User, Shield, Settings } from 'lucide-react';
+import { Server, Bell, User, Shield, Settings, Layout } from 'lucide-react';
 import { MainNavType } from '../types';
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeNav, setActiveNav }) => {
     { id: 'device-center', label: '設備\n中心', icon: <Server size={20} /> },
     { id: 'event-center', label: '事件\n中心', icon: <Bell size={20} /> },
     { id: 'account-center', label: '帳號\n中心', icon: <User size={20} /> },
+    { id: 'floorplan-center', label: '平面圖\n中心', icon: <Layout size={20} /> },
   ];
 
   const bottomItems: { id: MainNavType; label: string; icon: React.ReactNode }[] = [

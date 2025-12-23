@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import SiteTree from './components/SiteTree';
@@ -9,6 +10,7 @@ import SettingTab from './components/SettingTab';
 import AccountTab from './components/AccountTab';
 import EventTab from './components/EventTab';
 import DeviceTab from './components/DeviceTab';
+import FloorPlanCenterTab from './components/FloorPlanCenterTab';
 import { SITE_TREE_DATA, MOCK_EVENTS } from './constants';
 import { MainNavType, SiteNode, TabType, GridSize, SecurityEvent } from './types';
 import { Grid2x2, Grid3x3, Square, User as UserIcon } from 'lucide-react';
@@ -187,6 +189,8 @@ const App: React.FC = () => {
                 <SettingTab />
              ) : activeNav === 'account-center' ? (
                 <AccountTab />
+             ) : activeNav === 'floorplan-center' ? (
+                <FloorPlanCenterTab />
              ) : activeNav === 'event-center' ? (
                 <EventTab />
              ) : activeNav === 'device-center' ? (
