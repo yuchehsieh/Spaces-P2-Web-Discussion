@@ -20,7 +20,8 @@ import {
   Pencil,
   Eye,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Undo2
 } from 'lucide-react';
 import { SiteNode, FloorPlanData, SensorPosition } from '../types';
 import { SITE_TREE_DATA, INITIAL_FLOOR_PLANS } from '../constants';
@@ -30,6 +31,12 @@ const FloorPlanCenterTab: React.FC = () => {
   const [floorPlans, setFloorPlans] = useState<FloorPlanData[]>(INITIAL_FLOOR_PLANS);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  
+  // 新增：編輯歷史紀錄，用於實作 Undo 功能
+  const [editHistory, setEditHistory] = useState<FloorPlanData[][]>([]);
+  
+  // 新增：用於追蹤目前正要移除的感測器 ID
+  const [sensorToRemove, setSensorToRemove] = useState<string | null>(null);
 
   // Zoom & Pan States
   const [scale, setScale] = useState(1);
@@ -99,6 +106,7 @@ const FloorPlanCenterTab: React.FC = () => {
   const handleSiteSelect = (id: string) => {
     setSelectedSiteId(id);
     setIsEditing(false); // 切換據點時重設為檢視模式
+    setEditHistory([]); // 清空歷史
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +115,10 @@ const FloorPlanCenterTab: React.FC = () => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const imageUrl = event.target?.result as string;
+        
+        // 儲存至歷史紀錄
+        setEditHistory(prev => [...prev, [...floorPlans]]);
+
         setFloorPlans(prev => {
           const existing = prev.findIndex(p => p.siteId === selectedSiteId);
           if (existing > -1) {
@@ -141,6 +153,9 @@ const FloorPlanCenterTab: React.FC = () => {
     x = Math.max(0, Math.min(100, x));
     y = Math.max(0, Math.min(100, y));
 
+    // 儲存至歷史紀錄
+    setEditHistory(prev => [...prev, [...floorPlans]]);
+
     setFloorPlans(prev => {
       const planIdx = prev.findIndex(p => p.siteId === selectedSiteId);
       if (planIdx === -1) {
@@ -160,15 +175,29 @@ const FloorPlanCenterTab: React.FC = () => {
     });
   };
 
-  const removeSensor = (sensorId: string) => {
-    if (!isEditing || !selectedSiteId) return;
+  // 實際執行移除的邏輯
+  const confirmRemoveSensor = () => {
+    if (!sensorToRemove || !selectedSiteId) return;
+
+    // 儲存至歷史紀錄
+    setEditHistory(prev => [...prev, [...floorPlans]]);
+
     setFloorPlans(prev => {
       const planIdx = prev.findIndex(p => p.siteId === selectedSiteId);
       if (planIdx === -1) return prev;
       const next = [...prev];
-      next[planIdx] = { ...next[planIdx], sensors: next[planIdx].sensors.filter(s => s.id !== sensorId) };
+      next[planIdx] = { ...next[planIdx], sensors: next[planIdx].sensors.filter(s => s.id !== sensorToRemove) };
       return next;
     });
+    setSensorToRemove(null);
+  };
+
+  // Undo 處理邏輯
+  const handleUndo = () => {
+    if (editHistory.length === 0) return;
+    const lastState = editHistory[editHistory.length - 1];
+    setFloorPlans(lastState);
+    setEditHistory(prev => prev.slice(0, -1));
   };
 
   const getDeviceIcon = (type: string | undefined) => {
@@ -182,7 +211,7 @@ const FloorPlanCenterTab: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-full bg-[#050914] text-slate-200 overflow-hidden">
+    <div className="flex h-full w-full bg-[#050914] text-slate-200 overflow-hidden relative">
       {/* Left Sidebar: Site List */}
       <div className="w-80 border-r border-slate-800 bg-[#0b1121] flex flex-col shrink-0">
         <div className="p-6 border-b border-slate-800/50">
@@ -260,13 +289,20 @@ const FloorPlanCenterTab: React.FC = () => {
                     </label>
                     <div className="h-4 w-px bg-slate-800"></div>
                     <button 
-                      onClick={() => setIsEditing(false)}
+                      onClick={handleUndo}
+                      disabled={editHistory.length === 0}
+                      className={`px-4 py-2 rounded-xl transition-all font-bold text-xs border flex items-center gap-2 ${editHistory.length > 0 ? 'bg-slate-800 hover:bg-slate-700 text-blue-400 border-slate-700' : 'bg-slate-900/50 text-slate-600 border-slate-800 cursor-not-allowed'}`}
+                    >
+                       <Undo2 size={14} /> 上一步 (Undo)
+                    </button>
+                    <button 
+                      onClick={() => { setIsEditing(false); setEditHistory([]); }}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl transition-all font-bold text-xs border border-slate-700 flex items-center gap-2"
                     >
                        <XCircle size={14} /> 取消編輯
                     </button>
                     <button 
-                      onClick={() => setIsEditing(false)}
+                      onClick={() => { setIsEditing(false); setEditHistory([]); }}
                       className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/40 flex items-center gap-2"
                     >
                       <CheckCircle size={14} /> 儲存目前配置
@@ -274,7 +310,7 @@ const FloorPlanCenterTab: React.FC = () => {
                   </>
                 ) : (
                   <button 
-                    onClick={() => setIsEditing(true)}
+                    onClick={() => { setIsEditing(true); setEditHistory([]); }}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/40 flex items-center gap-2 group"
                   >
                     <Pencil size={14} className="group-hover:rotate-12 transition-transform" /> 編輯設備位置
@@ -310,7 +346,7 @@ const FloorPlanCenterTab: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-bold text-slate-200 truncate">{device.label}</div>
-                          <div className="text-[9px] text-slate-600 font-mono">ID: {device.id}</div>
+                          <div className={`text-[9px] text-slate-600 font-mono`}>ID: {device.id}</div>
                         </div>
                       </div>
                     </div>
@@ -356,7 +392,7 @@ const FloorPlanCenterTab: React.FC = () => {
                              {getDeviceIcon(device?.deviceType)}
                              {isEditing && (
                                <button 
-                                  onClick={e => { e.stopPropagation(); removeSensor(pos.id); }}
+                                  onClick={e => { e.stopPropagation(); setSensorToRemove(pos.id); }}
                                   className="absolute -top-2 -right-2 bg-red-500 rounded-full p-0.5 text-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
                                >
                                  <Trash2 size={10} />
@@ -377,7 +413,7 @@ const FloorPlanCenterTab: React.FC = () => {
                       <>
                         <Upload size={64} className="opacity-10" />
                         <p className="text-sm font-bold">請先上傳平面圖以開始配置</p>
-                        <label className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl cursor-pointer transition-all font-black text-xs tracking-widest uppercase shadow-xl shadow-blue-900/30">
+                        <label className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl cursor-pointer transition-all font-black text-xs tracking-widest uppercase shadow-xl shadow-blue-900/40">
                           選擇平面圖檔案
                           <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                         </label>
@@ -412,6 +448,38 @@ const FloorPlanCenterTab: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* 新增：移除設備確認對話框 */}
+      {sensorToRemove && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+           <div className="bg-[#1e293b] border border-slate-700 rounded-2xl shadow-2xl max-w-sm w-full p-8 animate-in zoom-in duration-200">
+              <div className="flex items-center gap-4 mb-6">
+                 <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500">
+                    <AlertTriangle size={28} />
+                 </div>
+                 <h3 className="text-xl font-black text-white tracking-tight">確認移除設備位置？</h3>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed mb-8">
+                您確定要從平面圖中移除此設備的標記嗎？<br/>
+                <span className="text-slate-500 text-xs">※ 此操作僅會將設備撤回至左側待配置清單，不會刪除設備。</span>
+              </p>
+              <div className="flex gap-4">
+                 <button 
+                    onClick={() => setSensorToRemove(null)}
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all font-bold text-sm border border-slate-700"
+                 >
+                    返回
+                 </button>
+                 <button 
+                    onClick={confirmRemoveSensor}
+                    className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all font-black text-sm shadow-xl shadow-red-900/40"
+                 >
+                    確認移除
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
