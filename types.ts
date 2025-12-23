@@ -2,7 +2,7 @@
 export interface SiteNode {
   id: string;
   label: string;
-  type: 'group' | 'site' | 'zone' | 'device';
+  type: 'group' | 'site' | 'host' | 'zone' | 'device';
   deviceType?: 'camera' | 'sensor' | 'door' | 'emergency';
   children?: SiteNode[];
   isOpen?: boolean; // Initial state
