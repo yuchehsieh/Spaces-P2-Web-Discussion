@@ -22,6 +22,10 @@ const App: React.FC = () => {
   const [gridSize, setGridSize] = useState<GridSize>(4);
   const [events, setEvents] = useState<SecurityEvent[]>(MOCK_EVENTS);
   
+  // 新增連動狀態
+  const [viewingSiteId, setViewingSiteId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
   // State to track which camera is in which slot. Key is slot index.
   const [videoSlots, setVideoSlots] = useState<Record<number, VideoSlotData>>({});
 
@@ -171,7 +175,13 @@ const App: React.FC = () => {
                         />
                     )}
                     {activeTab === 'security' && <SecurityTab />}
-                    {activeTab === 'map' && <MapTab />}
+                    {activeTab === 'map' && (
+                        <MapTab 
+                          activeEventId={selectedEventId} 
+                          onEventSelect={setSelectedEventId} 
+                          onViewingSiteChange={setViewingSiteId} 
+                        />
+                    )}
                     
                     <div className="absolute bottom-2 left-0 w-full text-center text-xs text-gray-500 pointer-events-none z-10">
                         (內容呈現區)
@@ -180,7 +190,13 @@ const App: React.FC = () => {
             </div>
             
             {/* 4. Event Presentation Area (Right) - Only visible in security center */}
-            <EventPanel events={events} onClearEvents={handleClearEvents} />
+            <EventPanel 
+              events={events} 
+              onClearEvents={handleClearEvents} 
+              activeSiteId={viewingSiteId}
+              selectedEventId={selectedEventId}
+              onEventSelect={setSelectedEventId}
+            />
           </>
         ) : (
           /* Real content for other navigation sections - EventPanel is hidden here, allowing flex-1 to expand */

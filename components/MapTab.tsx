@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { MapPin, Navigation, Video, Cpu, DoorOpen, Bell, AlertTriangle, Clock, ChevronRight, Layout, Home, Building2, Server } from 'lucide-react';
 import { SITE_TREE_DATA, MOCK_EVENTS, INITIAL_FLOOR_PLANS } from '../constants';
@@ -12,6 +13,12 @@ interface SiteStats {
   sensor: number;
   door: number;
   emergency: number;
+}
+
+interface MapTabProps {
+  activeEventId: string | null;
+  onEventSelect: (id: string | null) => void;
+  onViewingSiteChange: (siteId: string | null) => void;
 }
 
 const LOCATIONS = [
@@ -45,7 +52,7 @@ const LOCATIONS = [
   }
 ];
 
-const MapTab: React.FC = () => {
+const MapTab: React.FC<MapTabProps> = ({ activeEventId, onEventSelect, onViewingSiteChange }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<Record<string, any>>({});
@@ -57,6 +64,11 @@ const MapTab: React.FC = () => {
 
   // Use a ref to store the latest SITE_TREE_DATA for the Leaflet popup callback
   const siteTreeRef = useRef(SITE_TREE_DATA);
+
+  // 通知父組件當前檢視狀態
+  useEffect(() => {
+    onViewingSiteChange(selectedSiteForPlan?.id || null);
+  }, [selectedSiteForPlan, onViewingSiteChange]);
 
   // Global callback for Leaflet buttons (needed since popup HTML is a string)
   useEffect(() => {
@@ -86,7 +98,6 @@ const MapTab: React.FC = () => {
 
     MOCK_EVENTS.forEach(event => {
       const loc = event.location.toLowerCase();
-      // 根據位置關鍵字分類事件
       if (loc.includes('商研中心') || loc.includes('大辦公區') || loc.includes('總公司')) {
         eventsBySite['site-hq'].push(event);
       } else if (loc.includes('中山')) {
@@ -107,7 +118,6 @@ const MapTab: React.FC = () => {
     const countDevices = (node: SiteNode, stats: SiteStats) => {
       if (node.type === 'device') {
         if (node.deviceType === 'camera') stats.camera++;
-        // Sensors 為 sensor + door + emergency 之總和
         if (['sensor', 'door', 'emergency'].includes(node.deviceType || '')) stats.sensor++;
       }
       node.children?.forEach(c => countDevices(c, stats));
@@ -171,7 +181,6 @@ const MapTab: React.FC = () => {
         const marker = L.marker(loc.coords, { icon: createIcon(color, hasAlert) }).addTo(map);
         markersRef.current[loc.id] = marker;
         
-        // 依照截圖實作的彈窗內容樣式
         const alertSectionHtml = hasAlert ? `
             <div style="margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
                 <div style="display: flex; align-items: center; gap: 8px; color: #f87171; font-size: 14px; font-weight: 900; margin-bottom: 12px;">
@@ -196,9 +205,7 @@ const MapTab: React.FC = () => {
                     <h4 style="margin: 0; font-size: 18px; color: #cbd5e1; font-weight: 900; letter-spacing: -0.01em;">${loc.label}</h4>
                     <span style="background: #eff6ff; color: #3b82f6; padding: 4px 12px; border-radius: 99px; font-size: 11px; font-weight: 800;">${loc.type === 'hq' ? '總部' : '據點'}</span>
                 </div>
-
                 <div style="width: 100%; height: 1px; background: #e2e8f0; margin-bottom: 16px;"></div>
-                
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px;">
                     <div style="background: #1e293b; color: white; padding: 12px; border-radius: 10px; display: flex; align-items: center; gap: 12px;">
                         <span style="font-size: 18px;">📹</span>
@@ -209,9 +216,7 @@ const MapTab: React.FC = () => {
                         <span style="font-size: 18px; font-weight: 800;">${stats.sensor}</span>
                     </div>
                 </div>
-
                 ${alertSectionHtml}
-                
                 <div style="margin-top: 20px;">
                     <button 
                       onclick="window.openFloorPlan('${loc.id}')"
@@ -222,12 +227,7 @@ const MapTab: React.FC = () => {
                 </div>
             </div>`;
 
-        // 覆寫 Leaflet 樣式為白色背景
-        const popupOptions = {
-          maxWidth: 320,
-          className: 'custom-white-popup'
-        };
-
+        const popupOptions = { maxWidth: 320, className: 'custom-white-popup' };
         marker.bindPopup(popupContent, popupOptions);
         if (loc.id === 'site-hq' && !hqOpenedRef.current) { marker.openPopup(); hqOpenedRef.current = true; }
     });
@@ -252,14 +252,8 @@ const MapTab: React.FC = () => {
             box-shadow: 0 20px 40px rgba(0,0,0,0.3) !important;
             border: none !important;
           }
-          .custom-white-popup .leaflet-popup-tip {
-            background: white !important;
-          }
-          .custom-white-popup .leaflet-popup-close-button {
-            top: 12px !important;
-            right: 12px !important;
-            color: #94a3b8 !important;
-          }
+          .custom-white-popup .leaflet-popup-tip { background: white !important; }
+          .custom-white-popup .leaflet-popup-close-button { top: 12px !important; right: 12px !important; color: #94a3b8 !important; }
         `}</style>
 
         <div className={`h-full w-full relative animate-in fade-in slide-in-from-left-4 duration-300 ${selectedSiteForPlan ? 'hidden' : 'flex'}`}>
@@ -317,7 +311,14 @@ const MapTab: React.FC = () => {
             </div>
         </div>
         {selectedSiteForPlan && (
-          <FloorPlanView site={selectedSiteForPlan} onBack={() => setSelectedSiteForPlan(null)} initialData={floorPlans.find(p => p.siteId === selectedSiteForPlan.id)} onSave={handleSaveFloorPlan} events={MOCK_EVENTS} />
+          <FloorPlanView 
+            site={selectedSiteForPlan} 
+            onBack={() => setSelectedSiteForPlan(null)} 
+            initialData={floorPlans.find(p => p.siteId === selectedSiteForPlan.id)} 
+            onSave={handleSaveFloorPlan} 
+            events={MOCK_EVENTS}
+            selectedEventId={activeEventId}
+          />
         )}
     </div>
   );
