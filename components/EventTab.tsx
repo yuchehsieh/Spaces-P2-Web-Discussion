@@ -205,65 +205,78 @@ const EventTab: React.FC = () => {
 
              {/* 核心篩選控制區 (包含精確到秒的時間區段篩選) */}
              <div className="bg-[#111827] border border-slate-800 rounded-[2.5rem] p-8 mb-8 shadow-xl">
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
                    <div className="space-y-2 lg:col-span-1">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Building2 size={12} className="text-blue-500"/> 所屬據點</label>
-                      <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 appearance-none cursor-pointer">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 truncate"><Building2 size={12} className="text-blue-500"/> 所屬據點</label>
+                      <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 appearance-none cursor-pointer truncate">
                          <option value="ALL">全部據點...</option>
                          {SITES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                    </div>
+                   
                    <div className="space-y-2 lg:col-span-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Calendar size={12} className="text-blue-500"/> 事件查詢時間區段 (含時分秒)</label>
-                      <div className="flex items-center gap-2">
-                         <div className="relative flex-1 group/dt">
-                           <div className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white pointer-events-none shadow-lg shadow-blue-900/40 group-hover/dt:scale-110 transition-transform">
-                             <Calendar size={14} strokeWidth={3}/>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 truncate"><Calendar size={12} className="text-blue-500"/> 時間區段 (含時分秒)</label>
+                      <div className="flex items-center gap-2 min-w-0">
+                         <div className="relative flex-1 group/dt min-w-0">
+                           <div className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center text-white pointer-events-none shadow-lg shadow-blue-900/40 group-hover/dt:scale-110 transition-transform">
+                             <Calendar size={12} strokeWidth={3}/>
                            </div>
                            <input 
                              type="datetime-local" 
                              step="1"
                              value={startDateTime} 
                              onChange={e => setStartDateTime(e.target.value)} 
-                             className="w-full bg-[#050914] border border-slate-700 rounded-xl py-2.5 pl-14 pr-4 text-xs text-slate-300 focus:border-blue-500 outline-none transition-all hover:border-slate-500 custom-datetime-input" 
+                             className="w-full bg-[#050914] border border-slate-700 rounded-xl py-2.5 pl-10 pr-2 text-[10px] text-slate-300 focus:border-blue-500 outline-none transition-all hover:border-slate-500 custom-datetime-input" 
                            />
                          </div>
-                         <span className="text-slate-700 font-black px-1 opacity-50">~</span>
-                         <div className="relative flex-1 group/dt">
-                           <div className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white pointer-events-none shadow-lg shadow-blue-900/40 group-hover/dt:scale-110 transition-transform">
-                             <Calendar size={14} strokeWidth={3}/>
+                         <span className="text-slate-700 font-black px-0.5 opacity-50 shrink-0">~</span>
+                         <div className="relative flex-1 group/dt min-w-0">
+                           <div className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center text-white pointer-events-none shadow-lg shadow-blue-900/40 group-hover/dt:scale-110 transition-transform">
+                             <Calendar size={12} strokeWidth={3}/>
                            </div>
                            <input 
                              type="datetime-local" 
                              step="1"
                              value={endDateTime} 
                              onChange={e => setEndDateTime(e.target.value)} 
-                             className="w-full bg-[#050914] border border-slate-700 rounded-xl py-2.5 pl-14 pr-4 text-xs text-slate-300 focus:border-blue-500 outline-none transition-all hover:border-slate-500 custom-datetime-input" 
+                             className="w-full bg-[#050914] border border-slate-700 rounded-xl py-2.5 pl-10 pr-2 text-[10px] text-slate-300 focus:border-blue-500 outline-none transition-all hover:border-slate-500 custom-datetime-input" 
                            />
                          </div>
                       </div>
                    </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><UserCheck size={12} className="text-blue-500"/> 處置人員</label>
-                      <select value={filterHandler} onChange={(e) => setFilterHandler(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 appearance-none">
+
+                   <div className="space-y-2 lg:col-span-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 truncate"><UserCheck size={12} className="text-blue-500"/> 處置人員</label>
+                      <select value={filterHandler} onChange={(e) => setFilterHandler(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 appearance-none truncate">
                          <option value="ALL">全部人員...</option>
                          {HANDLERS.map(h => <option key={h} value={h}>{h}</option>)}
                       </select>
                    </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Activity size={12} className="text-blue-500"/> 報警狀態</label>
-                      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 appearance-none">
+                   
+                   <div className="space-y-2 lg:col-span-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 truncate"><Activity size={12} className="text-blue-500"/> 報警狀態</label>
+                      <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 appearance-none truncate">
                          <option value="ALL">全部狀態...</option>
                          <option value="unhandled">未處理</option>
                          <option value="processing">處理中</option>
                          <option value="resolved">已處理</option>
                       </select>
                    </div>
+
+                   <div className="space-y-2 lg:col-span-1 self-end">
+                      <button 
+                        onClick={() => { setFilterSite('ALL'); setFilterHandler('ALL'); setFilterStatus('ALL'); setStartDateTime(''); setEndDateTime(''); setSearchTerm(''); }}
+                        className="w-full py-3 bg-slate-800/40 hover:bg-slate-800 text-slate-500 hover:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700/50 transition-all"
+                      >
+                         重設篩選
+                      </button>
+                   </div>
                 </div>
+                
                 <div className="mt-6 pt-6 border-t border-slate-800 flex items-center gap-4">
                    <div className="relative flex-1">
-                      <input type="text" placeholder="關鍵字搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-200 outline-none focus:border-blue-500 transition-all" />
-                      <Search size={18} className="absolute left-3.5 top-3 text-slate-600" />
+                      <input type="text" placeholder="輸入關鍵字進行全文搜尋..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 pl-12 pr-4 text-sm text-slate-200 outline-none focus:border-blue-500 transition-all" />
+                      <Search size={20} className="absolute left-4 top-3 text-slate-600" />
                    </div>
                 </div>
              </div>
@@ -512,9 +525,20 @@ const EventTab: React.FC = () => {
            filter: invert(1);
            cursor: pointer;
            opacity: 0.8;
+           margin-right: 2px;
         }
         .custom-datetime-input::-webkit-calendar-picker-indicator:hover {
            opacity: 1;
+        }
+        /* 隱藏原生 datetime-local 的部分組件以節省空間 */
+        .custom-datetime-input::-webkit-datetime-edit-year-field,
+        .custom-datetime-input::-webkit-datetime-edit-month-field,
+        .custom-datetime-input::-webkit-datetime-edit-day-field,
+        .custom-datetime-input::-webkit-datetime-edit-hour-field,
+        .custom-datetime-input::-webkit-datetime-edit-minute-field,
+        .custom-datetime-input::-webkit-datetime-edit-second-field,
+        .custom-datetime-input::-webkit-datetime-edit-ampm-field {
+           padding: 0 1px;
         }
       `}</style>
     </div>
