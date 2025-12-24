@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ChevronLeft, Upload, Video, Cpu, DoorOpen, Bell, CheckCircle, ZoomIn, ZoomOut, Maximize, MousePointer2 } from 'lucide-react';
 import { SiteNode, FloorPlanData, SecurityEvent } from '../types';
@@ -105,53 +104,53 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
           >
             {floorPlan.imageUrl ? (
               <div 
-                ref={containerRef}
-                className="relative shadow-2xl transition-transform duration-75 ease-out"
+                className="relative shadow-2xl transition-transform duration-75 ease-out inline-block"
                 style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: 'center center' }}
               >
                 <img src={floorPlan.imageUrl} alt="Floor Plan" className="max-w-[85vw] max-h-[80vh] block rounded-lg pointer-events-none border border-slate-700 bg-slate-900/50" />
                 
-                {linkPath && (
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-                    <line 
-                      x1={`${linkPath.x1}%`} y1={`${linkPath.y1}%`} 
-                      x2={`${linkPath.x2}%`} y2={`${linkPath.y2}%`} 
-                      stroke="#ef4444" strokeWidth={3} strokeDasharray="6,4"
-                      className="animate-[dash_1s_linear_infinite]"
-                    />
-                    <circle cx={`${linkPath.x1}%`} cy={`${linkPath.y1}%`} r="4" fill="#ef4444" className="animate-pulse" />
-                    <circle cx={`${linkPath.x2}%`} cy={`${linkPath.y2}%`} r="4" fill="#ef4444" className="animate-pulse" />
-                  </svg>
-                )}
+                <div ref={containerRef} className="absolute inset-0 z-20 pointer-events-none">
+                  {linkPath && (
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                      <line 
+                        x1={`${linkPath.x1}%`} y1={`${linkPath.y1}%`} 
+                        x2={`${linkPath.x2}%`} y2={`${linkPath.y2}%`} 
+                        stroke="#ef4444" strokeWidth={3} strokeDasharray="6,4"
+                        className="animate-[dash_1s_linear_infinite]"
+                      />
+                      <circle cx={`${linkPath.x1}%`} cy={`${linkPath.y1}%`} r="4" fill="#ef4444" className="animate-pulse" />
+                      <circle cx={`${linkPath.x2}%`} cy={`${linkPath.y2}%`} r="4" fill="#ef4444" className="animate-pulse" />
+                    </svg>
+                  )}
 
-                {floorPlan.sensors.map(pos => {
-                  const isHighlighted = activeEvent?.sensorId === pos.id || activeEvent?.linkedSensorId === pos.id;
-                  const isMainAlert = activeEvent?.sensorId === pos.id;
-                  const isLinkedDevice = activeEvent?.linkedSensorId === pos.id;
+                  {floorPlan.sensors.map(pos => {
+                    const isMainAlert = activeEvent?.sensorId === pos.id;
+                    const isLinkedDevice = activeEvent?.linkedSensorId === pos.id;
 
-                  return (
-                    <div 
-                      key={pos.id} 
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-300`}
-                      style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-                    >
-                      <div className={`
-                          w-12 h-12 rounded-full border-2 flex items-center justify-center relative transition-all duration-500
-                          ${isMainAlert ? 'bg-red-500 border-white shadow-[0_0_30px_rgba(239,68,68,0.8)] scale-125 z-40 animate-pulse' : 
-                            isLinkedDevice ? 'bg-orange-500 border-white shadow-[0_0_20px_rgba(249,115,22,0.6)] scale-110 z-30' :
-                            'bg-blue-600/60 border-white/20 shadow-lg'}
-                        `}>
-                        {getDeviceIcon(pos.id)}
-                        
-                        {isMainAlert && (
-                           <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded shadow-2xl whitespace-nowrap border border-white/20 animate-bounce">
-                              偵測點: {activeEvent.message}
-                           </div>
-                        )}
+                    return (
+                      <div 
+                        key={pos.id} 
+                        className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-300`}
+                        style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+                      >
+                        <div className={`
+                            w-12 h-12 rounded-full border-2 flex items-center justify-center relative transition-all duration-500
+                            ${isMainAlert ? 'bg-red-500 border-white shadow-[0_0_30px_rgba(239,68,68,0.8)] scale-125 z-40 animate-pulse' : 
+                              isLinkedDevice ? 'bg-orange-500 border-white shadow-[0_0_20px_rgba(249,115,22,0.6)] scale-110 z-30' :
+                              'bg-blue-600/60 border-white/20 shadow-lg'}
+                          `}>
+                          {getDeviceIcon(pos.id)}
+                          
+                          {isMainAlert && (
+                             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded shadow-2xl whitespace-nowrap border border-white/20 animate-bounce">
+                                偵測點: {activeEvent.message}
+                             </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-4 text-slate-500 italic">

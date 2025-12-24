@@ -34,6 +34,11 @@ export interface SensorPosition {
   y: number; // percentage 0-100 or relative to map bounds
 }
 
+export interface MapRegion {
+  id: string;
+  coords: [number, number][]; // 儲存精確的頂點經緯度陣列，以支援不規則四邊形
+}
+
 export interface FloorPlanData {
   siteId: string;
   type: 'image' | 'map';
@@ -41,7 +46,7 @@ export interface FloorPlanData {
   mapConfig?: {
     center: [number, number];
     zoom: number;
-    bounds?: [[number, number], [number, number]]; // 選取的地理範圍
+    regions: MapRegion[]; // 支援多個選取框
   };
   sensors: SensorPosition[];
 }

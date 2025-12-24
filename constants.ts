@@ -191,19 +191,18 @@ export const MOCK_EVENTS: SecurityEvent[] = [
 
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
   {
-    siteId: 'zone-hq-office', // 已修正：原為 site-hq，現遷至分區
+    siteId: 'zone-hq-office',
     type: 'image',
     imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
     sensors: [
-      { id: 'c-ipc-1', x: 45, y: 39 },    
-      { id: 'c-pir', x: 33, y: 52 },      
-      { id: 'c-webcam', x: 23, y: 43 },   
-      { id: 'o-door', x: 18, y: 73 },     
+      { id: 'c-webcam', x: 23.5, y: 41.5 },  // 左側隔間攝影機
+      { id: 'c-ipc-1', x: 44.8, y: 38.2 },   // 上方走廊攝影機
+      { id: 'c-pir', x: 33.6, y: 50.8 },     // 中央偵測器
+      { id: 'o-door', x: 18.5, y: 71.2 },    // 左下角臥室門磁
     ]
   }
 ];
 
-// Added MOCK_SYSTEM_LOGS to fix SettingTab compilation error
 export const MOCK_SYSTEM_LOGS = [
   { id: '1', timestamp: '17:45:12', level: 'INFO', message: 'User Admin logged in from 192.168.1.105' },
   { id: '2', timestamp: '17:48:05', level: 'WARN', message: 'Repeated failed login attempt from 10.0.4.22' },
@@ -212,7 +211,6 @@ export const MOCK_SYSTEM_LOGS = [
   { id: '5', timestamp: '18:02:15', level: 'INFO', message: 'System backup completed successfully' },
 ];
 
-// Added MOCK_AUTHORIZATIONS to fix AccountTab compilation error
 export const MOCK_AUTHORIZATIONS = [
   {
     id: 'auth-1',
