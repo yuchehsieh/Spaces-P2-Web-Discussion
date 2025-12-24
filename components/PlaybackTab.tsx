@@ -21,7 +21,14 @@ import {
   X,
   Check,
   RefreshCcw,
-  GripHorizontal
+  GripHorizontal,
+  HardDrive,
+  Cloud,
+  Loader2,
+  Play,
+  Video,
+  CheckSquare,
+  Square as SquareIcon
 } from 'lucide-react';
 
 const PlaybackTab: React.FC = () => {
@@ -35,6 +42,13 @@ const PlaybackTab: React.FC = () => {
   const [hasSelection, setHasSelection] = useState(false); 
   const [zoomLevel, setZoomLevel] = useState(50); 
   
+  // 下載彈窗狀態
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [storageType, setStorageType] = useState<'device' | 'cloud'>('device');
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [selectedCameraIds, setSelectedCameraIds] = useState<Set<string>>(new Set());
+
   // 擷取框互動狀態 (以像素為單位)
   const [selectionBox, setSelectionBox] = useState({ top: 150, height: 100 });
   const [isDraggingBox, setIsDraggingBox] = useState(false);
@@ -45,6 +59,8 @@ const PlaybackTab: React.FC = () => {
   const initialBoxH = useRef(0);
   
   const viewportRef = useRef<HTMLDivElement>(null);
+
+  const activeCameras = useMemo(() => Object.values(videoSlots), [videoSlots]);
 
   const cameraOnlyTree = useMemo(() => {
     const filter = (nodes: SiteNode[]): SiteNode[] => {
@@ -159,10 +175,56 @@ const PlaybackTab: React.FC = () => {
     } else if (!hasSelection) {
       setHasSelection(true);
     } else {
-      alert("開始下載選取片段...");
-      setIsClipping(false);
-      setHasSelection(false);
+      if (activeCameras.length === 0) {
+        alert("請先載入至少一台攝影機畫面");
+        return;
+      }
+      // 初始化全選
+      setSelectedCameraIds(new Set(activeCameras.map(c => c.id)));
+      setDownloadProgress(0);
+      setIsDownloading(false);
+      setIsDownloadModalOpen(true);
     }
+  };
+
+  const toggleCameraSelection = (id: string) => {
+    const next = new Set(selectedCameraIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedCameraIds(next);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCameraIds.size === activeCameras.length) {
+      setSelectedCameraIds(new Set());
+    } else {
+      setSelectedCameraIds(new Set(activeCameras.map(c => c.id)));
+    }
+  };
+
+  const startDownloadSimulation = () => {
+    if (selectedCameraIds.size === 0) {
+      alert("請至少選擇一個頻道進行下載");
+      return;
+    }
+    setIsDownloading(true);
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress >= 100) {
+        progress = 100;
+        setDownloadProgress(100);
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsDownloadModalOpen(false);
+          setIsClipping(false);
+          setHasSelection(false);
+          alert("影像下載完成！");
+        }, 800);
+      } else {
+        setDownloadProgress(Math.floor(progress));
+      }
+    }, 400);
   };
 
   const discardCapture = () => {
@@ -202,7 +264,7 @@ const PlaybackTab: React.FC = () => {
                 <Scissors size={20} className="text-white animate-pulse" />
                 <div className="flex flex-col">
                   <span className="text-xs font-black text-white tracking-widest uppercase">影像片段擷取模式</span>
-                  <span className="text-[10px] text-blue-200 font-bold">{hasSelection ? '拖動藍色方框調整區間，完成後點擊確認' : '請在右側時間軸選擇欲擷取的範圍'}</span>
+                  <span className="text-[10px] text-blue-200 font-bold">{hasSelection ? '拖動藍色方框調整區間，完成後點擊下載' : '請在右側時間軸選擇欲擷取的範圍'}</span>
                 </div>
                 <button onClick={discardCapture} className="ml-4 p-1.5 bg-black/30 hover:bg-red-500/50 rounded-lg transition-all"><X size={16} className="text-white"/></button>
             </div>
@@ -210,10 +272,8 @@ const PlaybackTab: React.FC = () => {
         </div>
       </div>
 
-      {/* 右側時間軸區域 - 設計優化 */}
       <div className="w-72 bg-[#0b1121] border-l border-slate-800 flex flex-col h-full shrink-0">
         
-        {/* Header Section - Stacked for better spacing */}
         <div className="p-4 border-b border-slate-800 bg-black/20 space-y-4">
             <div className="flex items-center justify-between px-1">
                 <div className="flex flex-col">
@@ -247,26 +307,21 @@ const PlaybackTab: React.FC = () => {
         >
             <div className="h-full w-full relative">
                 
-                {/* 中央主要軌道 */}
                 <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-slate-800 -translate-x-1/2 rounded-full overflow-hidden">
                     <div className="absolute top-0 bottom-0 left-0 w-full bg-blue-900/40 border-x border-blue-500/20"></div>
                 </div>
 
-                {/* 刻度與標籤 - 以軌道為中心左右分布 */}
                 <div className="h-full w-full relative">
                     {timeLabels.map((label, idx) => (
                         <div key={idx} className="absolute w-full flex items-center justify-center" style={{ top: `${idx * 5}%` }}>
-                            {/* 左側時間標籤 */}
                             <div className="absolute right-[calc(50%+1rem)] text-[10px] font-black text-slate-500 font-mono tracking-tighter w-20 text-right">
                                 {label}
                             </div>
-                            {/* 中央刻度點 */}
                             <div className={`h-px w-3 bg-slate-500/50 ${idx % 5 === 0 ? 'w-5 bg-slate-400' : ''}`}></div>
                         </div>
                     ))}
                 </div>
 
-                {/* LIVE LINE - 中心橫跨 */}
                 {timeOffset === 0 && (
                   <div className="absolute top-8 left-0 right-0 z-20 flex items-center">
                       <div className="h-px bg-red-500 flex-1 shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
@@ -277,14 +332,12 @@ const PlaybackTab: React.FC = () => {
                   </div>
                 )}
 
-                {/* 擷取範圍選取區 - 支援拖動與縮放 */}
                 {isClipping && (
                   <div 
                     style={{ top: `${selectionBox.top}px`, height: `${selectionBox.height}px` }}
                     className="absolute left-12 right-12 bg-blue-500/30 border border-blue-400/60 rounded-lg z-30 transition-shadow hover:shadow-[0_0_20px_rgba(59,130,246,0.2)] group/box"
                     onMouseDown={(e) => handleMouseDown(e, 'box')}
                   >
-                      {/* 上方縮放拉桿 */}
                       <div 
                         className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-blue-400 rounded-full cursor-ns-resize flex items-center justify-center border border-white/20 opacity-0 group-hover/box:opacity-100 transition-opacity"
                         onMouseDown={(e) => handleMouseDown(e, 'top')}
@@ -292,7 +345,6 @@ const PlaybackTab: React.FC = () => {
                         <div className="w-4 h-0.5 bg-white/60 rounded-full"></div>
                       </div>
 
-                      {/* 內容指示器 */}
                       <div className="h-full w-full flex items-center justify-center">
                          <div className="bg-blue-600 rounded-full p-2 shadow-xl ring-2 ring-blue-400">
                            <Scissors size={14} className="text-white" />
@@ -302,7 +354,6 @@ const PlaybackTab: React.FC = () => {
                          </div>
                       </div>
 
-                      {/* 下方縮放拉桿 */}
                       <div 
                         className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-8 h-3 bg-blue-400 rounded-full cursor-ns-resize flex items-center justify-center border border-white/20 opacity-0 group-hover/box:opacity-100 transition-opacity"
                         onMouseDown={(e) => handleMouseDown(e, 'bottom')}
@@ -314,7 +365,6 @@ const PlaybackTab: React.FC = () => {
             </div>
         </div>
 
-        {/* Timeline Bottom Controls */}
         <div className="p-6 bg-black/60 border-t border-slate-800 space-y-8">
             <div className="flex items-center gap-4 px-1">
                 <ZoomOut size={16} className="text-slate-500" />
@@ -361,6 +411,198 @@ const PlaybackTab: React.FC = () => {
             </div>
         </div>
       </div>
+
+      {/* 影像下載任務確認彈窗 - 優化頻道選取與影格呈現 */}
+      {isDownloadModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+           <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] w-full max-w-6xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[95vh] ring-1 ring-white/5">
+              
+              {/* Header */}
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40 shrink-0">
+                 <div className="flex items-center gap-5">
+                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
+                       <CloudDownload size={28} />
+                    </div>
+                    <div>
+                       <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">影像下載任務確認</h2>
+                       <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Review your video clipping request ({activeCameras.length} Active Channels)</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setIsDownloadModalOpen(false)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all">
+                    <X size={28} />
+                 </button>
+              </div>
+
+              <div className="p-10 space-y-10 overflow-y-auto custom-scrollbar">
+                 {/* Top Settings: Time & Storage */}
+                 <div className="grid grid-cols-2 gap-8 shrink-0">
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                          <History size={14} /> 時間範圍確認
+                       </div>
+                       <div className="bg-black/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4 shadow-inner">
+                          <div className="flex justify-between items-center">
+                             <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">開始時間</span>
+                             <span className="text-lg font-mono font-black text-white bg-blue-900/20 px-3 py-1 rounded-lg">2025-12-22 17:15:30</span>
+                          </div>
+                          <div className="h-px bg-slate-800/50"></div>
+                          <div className="flex justify-between items-center">
+                             <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">結束時間</span>
+                             <span className="text-lg font-mono font-black text-white bg-blue-900/20 px-3 py-1 rounded-lg">2025-12-22 17:20:30</span>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                          <HardDrive size={14} /> 儲存位置設定
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <button 
+                            onClick={() => setStorageType('device')}
+                            className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${storageType === 'device' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:bg-slate-800/40'}`}
+                          >
+                             <HardDrive size={24} />
+                             <span className="text-xs font-black uppercase tracking-widest">裝置本機儲存</span>
+                          </button>
+                          <button 
+                            onClick={() => setStorageType('cloud')}
+                            className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${storageType === 'cloud' ? 'bg-blue-500/10 border-blue-500 text-blue-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:bg-slate-800/40'}`}
+                          >
+                             <Cloud size={24} />
+                             <span className="text-xs font-black uppercase tracking-widest">SKS 雲端存證</span>
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Multi-Channel Selection & Filmstrip */}
+                 <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                       <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                          <Play size={14} /> 影格分段預覽與頻道選取
+                       </div>
+                       <div className="flex items-center gap-6">
+                          <button 
+                            onClick={toggleSelectAll}
+                            className="flex items-center gap-2 text-xs font-black text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest"
+                          >
+                             {selectedCameraIds.size === activeCameras.length ? <CheckSquare size={16}/> : <SquareIcon size={16}/>}
+                             {selectedCameraIds.size === activeCameras.length ? '取消全選' : '全選所有頻道'}
+                          </button>
+                          <span className="text-[10px] font-black text-slate-600 bg-slate-800 px-3 py-1 rounded-full uppercase tracking-tighter">
+                             預計檔案大小: {(selectedCameraIds.size * 48.2).toFixed(1)} MB
+                          </span>
+                       </div>
+                    </div>
+                    
+                    <div className="space-y-12">
+                        {activeCameras.map((camera, camIdx) => {
+                           const isSelected = selectedCameraIds.has(camera.id);
+                           return (
+                             <div 
+                               key={camera.id} 
+                               className={`space-y-4 p-6 rounded-[2.5rem] border transition-all duration-300 relative ${isSelected ? 'bg-blue-600/5 border-blue-500/30' : 'bg-black/20 border-slate-800 opacity-60'}`}
+                             >
+                               <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                     <button 
+                                       onClick={() => toggleCameraSelection(camera.id)}
+                                       className={`p-2 rounded-xl transition-all ${isSelected ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+                                     >
+                                        {isSelected ? <CheckSquare size={18} /> : <SquareIcon size={18} />}
+                                     </button>
+                                     <div className="flex items-center gap-2">
+                                        <Video size={16} className={isSelected ? 'text-blue-400' : 'text-slate-600'} />
+                                        <span className={`text-sm font-black uppercase tracking-wider ${isSelected ? 'text-white' : 'text-slate-500'}`}>{camera.label}</span>
+                                     </div>
+                                  </div>
+                                  {isSelected && <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest bg-blue-900/20 px-3 py-1 rounded-full animate-pulse">READY TO DOWNLOAD</span>}
+                               </div>
+
+                               <div className="bg-black/60 rounded-[1.8rem] border border-slate-800/50 p-3 overflow-x-auto no-scrollbar shadow-inner">
+                                  <div className="flex gap-4 min-w-max px-2 py-4">
+                                     {Array.from({ length: 10 }).map((_, i) => (
+                                        <div key={i} className="flex flex-col gap-2">
+                                           {/* 重點優化：時間戳記標籤置頂且顯眼 */}
+                                           <div className="flex justify-center">
+                                              <span className="text-[10px] font-mono font-black text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 shadow-sm tracking-tighter">
+                                                 17:1{i}:{(i*6)%60 < 10 ? '0' : ''}${(i*6)%60}
+                                              </span>
+                                           </div>
+                                           <div className="w-36 h-20 rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden relative shrink-0 group transition-transform hover:scale-105 hover:z-10 cursor-pointer">
+                                              <img 
+                                                src={`https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_${(i % 4) + 1}.jpg?raw=true`} 
+                                                className={`w-full h-full object-cover transition-opacity duration-500 ${isSelected ? 'opacity-80' : 'opacity-30'} group-hover:opacity-100`} 
+                                              />
+                                              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                           </div>
+                                        </div>
+                                     ))}
+                                  </div>
+                               </div>
+                             </div>
+                           );
+                        })}
+                    </div>
+                 </div>
+
+                 {/* Progress Indicator */}
+                 {isDownloading && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300 shrink-0 bg-blue-600/5 p-8 rounded-3xl border border-blue-500/20">
+                       <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-3">
+                             <Loader2 size={16} className="animate-spin" /> 下載執行中... ({selectedCameraIds.size} / {activeCameras.length} 頻道)
+                          </span>
+                          <span className="text-lg font-mono font-black text-blue-500">{downloadProgress}%</span>
+                       </div>
+                       <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden shadow-inner p-0.5">
+                          <div className="h-full bg-blue-600 shadow-[0_0_20px_rgba(37,99,235,0.8)] transition-all duration-500 ease-out rounded-full" style={{ width: `${downloadProgress}%` }}></div>
+                       </div>
+                    </div>
+                 )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex items-center justify-between shrink-0">
+                 <div className="flex items-center gap-4">
+                    <div className="p-4 bg-slate-900/50 rounded-2xl border border-slate-800 flex items-center gap-4">
+                       <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">已選取頻道</span>
+                          <span className="text-xl font-black text-white tracking-tighter">{selectedCameraIds.size} <span className="text-xs text-slate-500">CH</span></span>
+                       </div>
+                       <div className="w-px h-8 bg-slate-800"></div>
+                       <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">預計總時長</span>
+                          <span className="text-xl font-black text-white tracking-tighter">05:00 <span className="text-xs text-slate-500">MINS</span></span>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="flex gap-5">
+                    <button 
+                      onClick={() => setIsDownloadModalOpen(false)}
+                      className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest"
+                    >
+                       取消任務
+                    </button>
+                    <button 
+                      onClick={startDownloadSimulation}
+                      disabled={isDownloading || selectedCameraIds.size === 0}
+                      className={`px-14 py-4 rounded-2xl transition-all font-black text-sm uppercase tracking-widest shadow-2xl flex items-center gap-4
+                        ${isDownloading || selectedCameraIds.size === 0 
+                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50' 
+                          : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/40 ring-1 ring-white/10 active:scale-95'
+                        }
+                      `}
+                    >
+                       {isDownloading ? <><Loader2 size={20} className="animate-spin"/> 下載中...</> : <><CloudDownload size={20} /> 下載選取內容</>}
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
