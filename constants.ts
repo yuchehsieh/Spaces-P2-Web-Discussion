@@ -1,3 +1,4 @@
+
 import { SiteNode, SecurityEvent, FloorPlanData } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
@@ -188,41 +189,85 @@ export const MOCK_EVENTS: SecurityEvent[] = [
   }
 ];
 
-export const MOCK_SYSTEM_LOGS = [
-  { id: 'l1', timestamp: '14:02:11', level: 'INFO', message: 'User login successful (Admin)' },
-  { id: 'l2', timestamp: '13:58:22', level: 'WARN', message: 'Camera 2 high latency detected' },
-  { id: 'l3', timestamp: '13:55:01', level: 'INFO', message: 'System check complete' },
+export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
+  {
+    siteId: 'zone-hq-office', // 已修正：原為 site-hq，現遷至分區
+    type: 'image',
+    imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
+    sensors: [
+      { id: 'c-ipc-1', x: 45, y: 39 },    
+      { id: 'c-pir', x: 33, y: 52 },      
+      { id: 'c-webcam', x: 23, y: 43 },   
+      { id: 'o-door', x: 18, y: 73 },     
+    ]
+  }
 ];
 
+// Added MOCK_SYSTEM_LOGS to fix SettingTab compilation error
+export const MOCK_SYSTEM_LOGS = [
+  { id: '1', timestamp: '17:45:12', level: 'INFO', message: 'User Admin logged in from 192.168.1.105' },
+  { id: '2', timestamp: '17:48:05', level: 'WARN', message: 'Repeated failed login attempt from 10.0.4.22' },
+  { id: '3', timestamp: '17:50:30', level: 'INFO', message: 'Zone "大辦公區" armed by Admin' },
+  { id: '4', timestamp: '17:55:00', level: 'ERROR', message: 'Camera IPC-1 connection lost' },
+  { id: '5', timestamp: '18:02:15', level: 'INFO', message: 'System backup completed successfully' },
+];
+
+// Added MOCK_AUTHORIZATIONS to fix AccountTab compilation error
 export const MOCK_AUTHORIZATIONS = [
   {
     id: 'auth-1',
-    granter: 'AndyChen',
-    email: 'andychen.1973@gmail.com',
-    units: ['總公司 (Site)', '商研中心 (主機1)'],
+    granter: 'SKS System Admin',
+    email: 'admin@sks.com.tw',
+    type: 'System',
     validity: 'Permanent',
-    grantDate: '2024-05-20',
-    type: 'Personal',
+    grantDate: '2025-01-10',
+    units: ['總公司 (Site)', '商研中心 (主機1)', '大辦公區 (分區1)'],
     permissions: {
       enabled: true,
       permanent: true,
       allowResharing: true,
-      security: { view: true, settings: true, schedule: true, cardEdit: false, contactEdit: false },
-      camera: { view: true, settings: true, ptz: true, playback: true },
+      security: {
+        view: true,
+        settings: true,
+        schedule: true,
+        cardEdit: true,
+        contactEdit: true
+      },
+      camera: {
+        view: true,
+        settings: true,
+        ptz: true,
+        playback: true
+      },
       events: true
     }
-  }
-];
-
-export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
+  },
   {
-    siteId: 'site-hq',
-    imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
-    sensors: [
-      { id: 'c-ipc-1', x: 45, y: 39 },    // 連動攝影機 (藍色圈)
-      { id: 'c-pir', x: 33, y: 52 },      // PIR 感測器 (中心連動點)
-      { id: 'c-webcam', x: 23, y: 43 },   // 越界偵測攝影機 (紅色圈)
-      { id: 'o-door', x: 18, y: 73 },     // 門磁 (左下角)
-    ]
+    id: 'auth-2',
+    granter: 'John Chen',
+    email: 'john.chen@sks.com.tw',
+    type: 'Corporate',
+    validity: '2026-12-31',
+    grantDate: '2025-05-20',
+    units: ['新光保全-中山處 (Site)'],
+    permissions: {
+      enabled: true,
+      permanent: false,
+      allowResharing: false,
+      security: {
+        view: true,
+        settings: false,
+        schedule: true,
+        cardEdit: false,
+        contactEdit: false
+      },
+      camera: {
+        view: true,
+        settings: false,
+        ptz: false,
+        playback: true
+      },
+      events: true
+    }
   }
 ];

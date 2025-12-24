@@ -30,13 +30,19 @@ export interface SecurityEvent {
 
 export interface SensorPosition {
   id: string;
-  x: number; // percentage 0-100
-  y: number; // percentage 0-100
+  x: number; // percentage 0-100 or relative to map bounds
+  y: number; // percentage 0-100 or relative to map bounds
 }
 
 export interface FloorPlanData {
   siteId: string;
-  imageUrl: string;
+  type: 'image' | 'map';
+  imageUrl?: string;
+  mapConfig?: {
+    center: [number, number];
+    zoom: number;
+    bounds?: [[number, number], [number, number]]; // 選取的地理範圍
+  };
   sensors: SensorPosition[];
 }
 
