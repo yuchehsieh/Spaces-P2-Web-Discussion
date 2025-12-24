@@ -11,6 +11,7 @@ import AccountTab from './components/AccountTab';
 import EventTab from './components/EventTab';
 import DeviceTab from './components/DeviceTab';
 import FloorPlanCenterTab from './components/FloorPlanCenterTab';
+import PlaybackTab from './components/PlaybackTab';
 import { SITE_TREE_DATA, MOCK_EVENTS } from './constants';
 import { MainNavType, SiteNode, TabType, GridSize, SecurityEvent } from './types';
 import { Grid2x2, Grid3x3, Square, User as UserIcon } from 'lucide-react';
@@ -201,7 +202,9 @@ const App: React.FC = () => {
         ) : (
           /* Real content for other navigation sections - EventPanel is hidden here, allowing flex-1 to expand */
           <div className="flex-1 flex overflow-hidden">
-             {activeNav === 'setting-center' ? (
+             {activeNav === 'playback-center' ? (
+                <PlaybackTab />
+             ) : activeNav === 'setting-center' ? (
                 <SettingTab />
              ) : activeNav === 'account-center' ? (
                 <AccountTab />
