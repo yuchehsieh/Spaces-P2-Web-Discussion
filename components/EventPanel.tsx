@@ -24,10 +24,12 @@ import {
   UserPlus,
   UserCheck,
   CheckCircle,
+  CheckCircle2,
   MessageSquare,
   Forward,
   ChevronRight,
-  User
+  User,
+  ClipboardList
 } from 'lucide-react';
 import { SecurityEvent, SiteNode } from '../types';
 import { SITE_TREE_DATA } from '../constants';
@@ -423,7 +425,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
               <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40">
                  <div className="flex items-center gap-5">
                     <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
-                       <CheckCircle size={28} />
+                       <CheckCircle2 size={28} />
                     </div>
                     <div>
                        <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">處置案件任務</h2>
@@ -440,7 +442,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                  <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={() => setHandleMode('claim')}
-                      className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${handleMode === 'claim' ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:bg-slate-800/40'}`}
+                      className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${handleMode === 'claim' ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
                     >
                        <UserCheck size={28} />
                        <div className="text-center">
@@ -450,7 +452,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                     </button>
                     <button 
                       onClick={() => setHandleMode('forward')}
-                      className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${handleMode === 'forward' ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:bg-slate-800/40'}`}
+                      className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${handleMode === 'forward' ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
                     >
                        <Forward size={28} />
                        <div className="text-center">
@@ -532,7 +534,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">{person.role}</span>
                                    </div>
                                 </div>
-                                {forwardTarget === person.id ? <CheckCircle size={18} className="text-purple-500" /> : <ChevronRight size={18} className="text-slate-700" />}
+                                {forwardTarget === person.id ? <CheckCircle2 size={18} className="text-purple-500" /> : <ChevronRight size={18} className="text-slate-700" />}
                              </button>
                           ))}
                        </div>
@@ -540,29 +542,31 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                  )}
               </div>
 
-              {/* Footer */}
-              <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5">
-                 <button 
-                   onClick={() => setHandlingEvent(null)}
-                   className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest"
-                 >
-                    取消任務
-                 </button>
-                 <button 
-                   onClick={submitHandle}
-                   disabled={!isFormValid || isSubmitting}
-                   className={`px-14 py-4 rounded-2xl transition-all font-black text-sm uppercase tracking-widest shadow-2xl flex items-center gap-3
-                     ${!isFormValid || isSubmitting 
-                        ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50' 
-                        : handleMode === 'claim' 
-                           ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/40' 
-                           : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/40'
-                     }
-                   `}
-                 >
-                    {isSubmitting ? <><RefreshCw className="animate-spin" size={20}/> 提交中</> : <><CheckCircle size={20} /> 完成處置提交</>}
-                 </button>
-              </div>
+              {/* Footer: 僅在 handleMode 選取後顯示 */}
+              {handleMode && (
+                <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5 animate-in slide-in-from-bottom-2">
+                   <button 
+                     onClick={() => { setHandlingEvent(null); setHandleMode(null); }}
+                     className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest"
+                   >
+                      取消任務
+                   </button>
+                   <button 
+                     onClick={submitHandle}
+                     disabled={!isFormValid || isSubmitting}
+                     className={`px-14 py-4 rounded-2xl transition-all font-black text-sm uppercase tracking-widest shadow-2xl flex items-center gap-3
+                       ${!isFormValid || isSubmitting 
+                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50' 
+                          : handleMode === 'claim' 
+                             ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/40' 
+                             : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/40'
+                       }
+                     `}
+                   >
+                      {isSubmitting ? <><RefreshCw className="animate-spin" size={20}/> 提交中</> : <><CheckCircle2 size={20} /> 完成處置提交</>}
+                   </button>
+                </div>
+              )}
            </div>
         </div>
       )}
@@ -587,9 +591,21 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                         </div>
                     </div>
                  </div>
-                 <button onClick={() => setModalContent(null)} className="p-3 hover:bg-red-500/20 rounded-2xl text-slate-500 hover:text-red-500 transition-all">
-                    <X size={32} />
-                 </button>
+                 <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => {
+                        const evt = modalContent.event;
+                        setModalContent(null);
+                        handleCaseAction(evt);
+                      }}
+                      className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-red-900/20 flex items-center gap-2.5 transition-all active:scale-95"
+                    >
+                      <ClipboardList size={16}/> 處置案件
+                    </button>
+                    <button onClick={() => setModalContent(null)} className="p-3 hover:bg-red-500/20 rounded-2xl text-slate-500 hover:text-red-500 transition-all">
+                        <X size={32} />
+                    </button>
+                 </div>
               </div>
               
               <div className="flex-1 flex overflow-hidden">
