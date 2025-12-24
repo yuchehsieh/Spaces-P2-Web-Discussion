@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Settings, 
@@ -21,7 +20,14 @@ import {
   Cpu,
   Activity,
   Layers,
-  MapPin
+  MapPin,
+  UserPlus,
+  UserCheck,
+  CheckCircle,
+  MessageSquare,
+  Forward,
+  ChevronRight,
+  User
 } from 'lucide-react';
 import { SecurityEvent, SiteNode } from '../types';
 import { SITE_TREE_DATA } from '../constants';
@@ -45,9 +51,23 @@ interface ModalMetadata {
   event: SecurityEvent;
 }
 
+const RECIPIENTS = [
+  { id: 'shelby', name: 'Shelby', role: '保安主管' },
+  { id: 'campbell', name: 'Campbell', role: '據點管理員' },
+  { id: 'polly', name: 'Polly', role: '緊急應變小組' }
+];
+
 const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSiteId, selectedEventId, onEventSelect }) => {
   const [modalContent, setModalContent] = useState<ModalMetadata | null>(null);
   const [isFilterActive, setIsFilterActive] = useState(false);
+  
+  // 處置彈窗狀態
+  const [handlingEvent, setHandlingEvent] = useState<SecurityEvent | null>(null);
+  const [handleMode, setHandleMode] = useState<'claim' | 'forward' | null>(null);
+  const [claimResult, setClaimResult] = useState<'confirmed' | 'false_alarm' | null>(null);
+  const [handleNote, setHandleNote] = useState('');
+  const [forwardTarget, setForwardTarget] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 當 activeSiteId 改變時，自動啟用或調整篩選狀態
   useEffect(() => {
@@ -107,6 +127,37 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
     }
     const index = Math.abs(hash) % 4 + 1;
     return `https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_${index}.jpg?raw=true`;
+  };
+
+  const handleCaseAction = (event: SecurityEvent) => {
+    setHandlingEvent(event);
+    setHandleMode(null);
+    setClaimResult(null);
+    setHandleNote('');
+    setForwardTarget(null);
+  };
+
+  const isFormValid = useMemo(() => {
+    if (!handleMode) return false;
+    if (handleMode === 'claim') {
+      return claimResult !== null && handleNote.trim() !== '';
+    }
+    if (handleMode === 'forward') {
+      return forwardTarget !== null;
+    }
+    return false;
+  }, [handleMode, claimResult, handleNote, forwardTarget]);
+
+  const submitHandle = () => {
+    if (!isFormValid) return;
+
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      const actionText = handleMode === 'claim' ? '已成功認領並處理案件' : `案件已成功轉發給 ${RECIPIENTS.find(r => r.id === forwardTarget)?.name}`;
+      alert(actionText);
+      setHandlingEvent(null);
+    }, 1000);
   };
 
   return (
@@ -218,8 +269,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                    </div>
                 </div>
 
-                {/* --- 詳情內容 --- */}
-                
                 {/* VLM 事件核心資訊 */}
                 {isVlm && event.vlmData && (
                   <div className="mt-3 space-y-3 animate-in fade-in duration-300">
@@ -331,7 +380,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                 )}
               </div>
 
-              {/* --- 操作按鈕區 --- */}
+              {/* 操作按鈕區 */}
               <div className={`absolute bottom-0 left-0 right-0 p-3 flex items-center justify-end space-x-2 bg-[#1e293b]/60 backdrop-blur-sm border-t border-slate-700/30 transition-all duration-300 translate-y-2 opacity-0
                 ${isSelected ? 'translate-y-0 opacity-100' : 'group-hover:translate-y-0 group-hover:opacity-100'}
               `}>
@@ -339,13 +388,13 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                    onClick={(e) => { e.stopPropagation(); }}
                    className="text-[10px] bg-[#1e293b]/80 text-slate-300 border border-slate-700 px-4 py-1.5 rounded-lg hover:bg-slate-700 transition-all font-bold"
                  >
-                   已讀忽略
+                   已請忽略
                  </button>
                  <button 
-                   onClick={(e) => { e.stopPropagation(); }}
+                   onClick={(e) => { e.stopPropagation(); handleCaseAction(event); }}
                    className={`text-[10px] px-4 py-1.5 rounded-lg transition-all font-bold shadow-lg shadow-blue-900/40 text-white ${isSos ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20' : 'bg-blue-600 hover:bg-blue-500'}`}
                  >
-                   {isSos ? '即刻處置' : '處置案件'}
+                   處置案件
                  </button>
               </div>
             </div>
@@ -365,7 +414,160 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
         SKS Intelligence Node
       </div>
 
-      {/* --- 精確對齊附件的專業存證放大彈窗 --- */}
+      {/* 處置案件彈窗 */}
+      {handlingEvent && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+           <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-white/5">
+              
+              {/* Header */}
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40">
+                 <div className="flex items-center gap-5">
+                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
+                       <CheckCircle size={28} />
+                    </div>
+                    <div>
+                       <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">處置案件任務</h2>
+                       <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Incident: {handlingEvent.message}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setHandlingEvent(null)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all">
+                    <X size={28} />
+                 </button>
+              </div>
+
+              <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                 {/* 模式選擇 */}
+                 <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setHandleMode('claim')}
+                      className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${handleMode === 'claim' ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:bg-slate-800/40'}`}
+                    >
+                       <UserCheck size={28} />
+                       <div className="text-center">
+                          <span className="block text-sm font-black uppercase tracking-widest">案件認領</span>
+                          <span className="text-[9px] opacity-60">由我親自處置</span>
+                       </div>
+                    </button>
+                    <button 
+                      onClick={() => setHandleMode('forward')}
+                      className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${handleMode === 'forward' ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:bg-slate-800/40'}`}
+                    >
+                       <Forward size={28} />
+                       <div className="text-center">
+                          <span className="block text-sm font-black uppercase tracking-widest">案件轉發</span>
+                          <span className="text-[9px] opacity-60">委派專人處理</span>
+                       </div>
+                    </button>
+                 </div>
+
+                 {/* 認領詳情 */}
+                 {handleMode === 'claim' && (
+                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-300">
+                       <div className="space-y-4">
+                          <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                             <Shield size={14} className="text-blue-500" /> 處理結果判定
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                             <button 
+                               onClick={() => setClaimResult('confirmed')}
+                               className={`py-3 px-4 rounded-xl border font-bold text-xs transition-all ${claimResult === 'confirmed' ? 'bg-red-500/10 border-red-500 text-red-500' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-600'}`}
+                             >
+                                確認為警報 (Alarm)
+                             </button>
+                             <button 
+                               onClick={() => setClaimResult('false_alarm')}
+                               className={`py-3 px-4 rounded-xl border font-bold text-xs transition-all ${claimResult === 'false_alarm' ? 'bg-green-500/10 border-green-500 text-green-500' : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-600'}`}
+                             >
+                                確認為誤報 (False)
+                             </button>
+                          </div>
+                       </div>
+
+                       <div className="space-y-3">
+                          <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                             <MessageSquare size={14} className="text-blue-500" /> 處置內容說明
+                          </label>
+                          <textarea 
+                             value={handleNote}
+                             onChange={(e) => setHandleNote(e.target.value)}
+                             placeholder="請輸入案件詳細處置狀況或備註事項..."
+                             className="w-full h-32 bg-black/40 border border-slate-800 rounded-2xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition-all resize-none shadow-inner"
+                          />
+                       </div>
+
+                       <div className="p-4 bg-blue-600/5 rounded-2xl border border-blue-500/20 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg">
+                                <User size={20} />
+                             </div>
+                             <div>
+                                <span className="block text-xs font-black text-white">當前處理人</span>
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">Admin (Super Admin)</span>
+                             </div>
+                          </div>
+                          <div className="px-3 py-1 bg-blue-600 text-[9px] font-black text-white rounded-full">SYSTEM OWNER</div>
+                       </div>
+                    </div>
+                 )}
+
+                 {/* 轉發詳情 */}
+                 {handleMode === 'forward' && (
+                    <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
+                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                          <UserPlus size={14} className="text-purple-500" /> 選擇轉發對象
+                       </label>
+                       <div className="space-y-2">
+                          {RECIPIENTS.map(person => (
+                             <button 
+                                key={person.id}
+                                onClick={() => setForwardTarget(person.id)}
+                                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${forwardTarget === person.id ? 'bg-purple-600/10 border-purple-500 shadow-xl' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`}
+                             >
+                                <div className="flex items-center gap-4">
+                                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black ${forwardTarget === person.id ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-500'}`}>
+                                      {person.name[0]}
+                                   </div>
+                                   <div className="text-left">
+                                      <span className={`block text-sm font-bold ${forwardTarget === person.id ? 'text-white' : 'text-slate-300'}`}>{person.name}</span>
+                                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">{person.role}</span>
+                                   </div>
+                                </div>
+                                {forwardTarget === person.id ? <CheckCircle size={18} className="text-purple-500" /> : <ChevronRight size={18} className="text-slate-700" />}
+                             </button>
+                          ))}
+                       </div>
+                    </div>
+                 )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5">
+                 <button 
+                   onClick={() => setHandlingEvent(null)}
+                   className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest"
+                 >
+                    取消任務
+                 </button>
+                 <button 
+                   onClick={submitHandle}
+                   disabled={!isFormValid || isSubmitting}
+                   className={`px-14 py-4 rounded-2xl transition-all font-black text-sm uppercase tracking-widest shadow-2xl flex items-center gap-3
+                     ${!isFormValid || isSubmitting 
+                        ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50' 
+                        : handleMode === 'claim' 
+                           ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/40' 
+                           : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/40'
+                     }
+                   `}
+                 >
+                    {isSubmitting ? <><RefreshCw className="animate-spin" size={20}/> 提交中</> : <><CheckCircle size={20} /> 完成處置提交</>}
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* 放大彈窗 - 專業存證放大彈窗 */}
       {modalContent && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 sm:p-10 animate-in fade-in duration-300">
            <div className="relative max-w-7xl w-full bg-[#111827] border border-slate-800 rounded-2xl shadow-[0_0_120px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5">
@@ -538,5 +740,13 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
     </div>
   );
 };
+
+// 用於處置中旋轉的圖示
+const RefreshCw = ({ size, className }: { size: number, className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
+    <path d="M21 3v5h-5"></path>
+  </svg>
+);
 
 export default EventPanel;
