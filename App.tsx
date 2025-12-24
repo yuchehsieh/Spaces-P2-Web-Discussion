@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import SiteTree from './components/SiteTree';
@@ -12,6 +11,7 @@ import EventTab from './components/EventTab';
 import DeviceTab from './components/DeviceTab';
 import FloorPlanCenterTab from './components/FloorPlanCenterTab';
 import PlaybackTab from './components/PlaybackTab';
+import VLMTab from './components/VLMTab'; 
 import { SITE_TREE_DATA, MOCK_EVENTS } from './constants';
 import { MainNavType, SiteNode, TabType, GridSize, SecurityEvent } from './types';
 import { Grid2x2, Grid3x3, Square, User as UserIcon } from 'lucide-react';
@@ -23,11 +23,9 @@ const App: React.FC = () => {
   const [gridSize, setGridSize] = useState<GridSize>(4);
   const [events, setEvents] = useState<SecurityEvent[]>(MOCK_EVENTS);
   
-  // 新增連動狀態
   const [viewingSiteId, setViewingSiteId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  // State to track which camera is in which slot. Key is slot index.
   const [videoSlots, setVideoSlots] = useState<Record<number, VideoSlotData>>({});
 
   const handleNodeSelect = (node: SiteNode) => {
@@ -66,7 +64,6 @@ const App: React.FC = () => {
     setEvents([]);
   };
 
-  // Fixed 4x4 Grid Icon SVG path
   const Grid4x4Icon = ({ size = 16, className = "" }) => (
     <svg 
       width={size} 
@@ -85,24 +82,12 @@ const App: React.FC = () => {
       
       {/* 0. Top Header Bar */}
       <header className="h-14 bg-[#004a99] flex items-center justify-between px-4 border-b border-slate-800 shrink-0 z-30 shadow-md">
-         {/* Left: Logo */}
          <div className="flex items-center">
             <div className="flex items-center justify-center p-1">
                <img 
                  src="https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/LOGO_SKS_NEW2.png?raw=true" 
                  alt="SKS Logo" 
                  className="h-9 w-auto object-contain"
-                 onError={(e) => {
-                    // Fallback to text if image fails to load
-                    (e.target as any).style.display = 'none';
-                    const parent = (e.target as any).parentElement;
-                    if (parent) {
-                        const textLogo = document.createElement('div');
-                        textLogo.className = "font-bold text-xl text-white";
-                        textLogo.innerText = "SKS";
-                        parent.appendChild(textLogo);
-                    }
-                 }}
                />
             </div>
             <span className="ml-3 text-sm text-blue-200 font-medium tracking-wide opacity-80 border-l border-blue-400/30 pl-3">
@@ -110,7 +95,6 @@ const App: React.FC = () => {
             </span>
          </div>
 
-         {/* Right: User Info */}
          <div className="flex items-center space-x-6 text-sm">
              <div className="flex items-center text-white font-medium bg-blue-800/50 px-3 py-1.5 rounded-full border border-blue-700">
                 <UserIcon size={16} className="mr-2" />
@@ -121,25 +105,25 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex min-h-0">
-        {/* 1. Sidebar (Regrouped) */}
         <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} />
 
-        {/* 2. Center Presentation Areas based on activeNav */}
         {activeNav === 'security-center' ? (
           <>
+            {/* 保持 Site Group 區始終顯示 */}
             <SiteTree 
                 data={SITE_TREE_DATA} 
                 onSelect={handleNodeSelect} 
                 selectedId={selectedNodeId} 
             />
 
-            <div className="flex-1 flex flex-col min-w-0 bg-[#050914] relative">
+            <div className="flex-1 flex flex-col min-w-0 bg-[#050914] relative border-r border-slate-800">
                 {/* Tab Navigation */}
-                <div className="flex items-end bg-black border-b border-slate-800 h-10 px-2 pt-2">
+                <div className="flex items-end bg-black border-b border-slate-800 h-10 px-2 pt-2 shrink-0">
                     {[
                         { id: 'camera', label: 'Tab1 Camera' },
                         { id: 'security', label: 'Tab2 Security' },
                         { id: 'map', label: 'Tab3 Map' },
+                        { id: 'vlm', label: 'Tab4 VLM' },
                     ].map((tab) => (
                         <button
                             key={tab.id}
@@ -154,7 +138,6 @@ const App: React.FC = () => {
                         </button>
                     ))}
                     
-                    {/* Grid Controls */}
                     {activeTab === 'camera' && (
                     <div className="ml-auto flex items-center space-x-1 pb-1 pr-2">
                         <button onClick={() => setGridSize(1)} className={`p-1 rounded ${gridSize === 1 ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800'}`} title="Single View"><Square size={16} strokeWidth={2.5} /></button>
@@ -183,14 +166,15 @@ const App: React.FC = () => {
                           onViewingSiteChange={setViewingSiteId} 
                         />
                     )}
+                    {activeTab === 'vlm' && <VLMTab />}
                     
-                    <div className="absolute bottom-2 left-0 w-full text-center text-xs text-gray-500 pointer-events-none z-10">
+                    <div className="absolute bottom-2 left-0 w-full text-center text-[10px] text-gray-700 pointer-events-none z-10 opacity-30">
                         (內容呈現區)
                     </div>
                 </div>
             </div>
             
-            {/* 4. Event Presentation Area (Right) - Only visible in security center */}
+            {/* 保持 SKS Intelligence Node 區始終顯示 */}
             <EventPanel 
               events={events} 
               onClearEvents={handleClearEvents} 
@@ -200,7 +184,6 @@ const App: React.FC = () => {
             />
           </>
         ) : (
-          /* Real content for other navigation sections - EventPanel is hidden here, allowing flex-1 to expand */
           <div className="flex-1 flex overflow-hidden">
              {activeNav === 'playback-center' ? (
                 <PlaybackTab />

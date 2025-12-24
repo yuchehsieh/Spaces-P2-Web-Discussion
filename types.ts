@@ -41,5 +41,5 @@ export interface FloorPlanData {
 }
 
 export type GridSize = 1 | 4 | 9 | 16;
-export type TabType = 'camera' | 'security' | 'map';
+export type TabType = 'camera' | 'security' | 'map' | 'vlm';
 export type MainNavType = 'security-center' | 'playback-center' | 'device-center' | 'event-center' | 'account-center' | 'floorplan-center' | 'setting-center';
