@@ -34,6 +34,13 @@ const App: React.FC = () => {
 
   const handleNodeSelect = (node: SiteNode) => {
     setSelectedNodeId(node.id);
+    
+    // --- 關鍵優化：手動切換優先 ---
+    // 當使用者在地圖分頁點擊樹狀圖，代表要切換視角，此時自動取消「選中事件」的狀態
+    // 這樣 MapTab 的優先級引擎就會從「事件導向」轉為「手動選擇導向」
+    if (activeTab === 'map' && selectedEventId) {
+      setSelectedEventId(null);
+    }
   };
 
   const handleSetDefaultView = (id: string | null) => {

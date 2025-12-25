@@ -43,6 +43,7 @@ const MapTab: React.FC<MapTabProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [originalSelectionId, setOriginalSelectionId] = useState<string | null>(null);
   
+  const isFirstLoad = useRef(true);
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -92,31 +93,60 @@ const MapTab: React.FC<MapTabProps> = ({
     return node;
   };
 
-  // --- 監聽事件點擊 (自動跳轉地圖 + 同步樹狀圖) ---
+  // --- 核心邏輯：決定目前要呈現的 Node (包含分頁切換優先級判定) ---
   useEffect(() => {
-    if (!activeEventId) return;
-    const event = MOCK_EVENTS.find(e => e.id === activeEventId);
-    if (!event || !event.sensorId) return;
+    let targetId: string | null = null;
+    let fallbackAlertNeeded = false;
 
-    const targetNode = findBestViewNode(event.sensorId);
-    if (targetNode) {
-       // 1. 同步左側樹狀圖選中狀態
-       if (onAutoSelectNode && targetNode.id !== activeNodeId) {
-          onAutoSelectNode(targetNode.id);
-       }
-       // 2. 更新地圖顯示區域 (如果已經是同一個 Node，handleNodeChange 內部會處理穩定化)
-       if (targetNode.id !== selectedSite?.id) {
-          handleNodeChange(targetNode.id);
-       }
+    // 優先判定權重：
+    // 1. 若當前有選中事件 (Event Priority)
+    if (activeEventId) {
+        const event = MOCK_EVENTS.find(e => e.id === activeEventId);
+        if (event && event.sensorId) {
+            const node = findBestViewNode(event.sensorId);
+            if (node) {
+                // 檢查該據點是否有實際圖資
+                const hasActualPlan = INITIAL_FLOOR_PLANS.some(p => p.siteId === node.id);
+                if (hasActualPlan) {
+                    targetId = node.id;
+                } else if (defaultViewId) {
+                    // 若事件所在區域無圖資，嘗試定位到預設圖資並發出提示
+                    targetId = defaultViewId;
+                    fallbackAlertNeeded = isFirstLoad.current; // 僅在初次進入此 Tab 且發生回退時提示，避免地圖內操作干擾
+                } else {
+                    targetId = node.id; // 無預設點時，則顯示原節點的空狀態
+                }
+            }
+        }
+    } 
+    
+    // 2. 若無事件選中，且是剛切換分頁進來 (Tab Switch Priority)
+    if (!targetId && isFirstLoad.current && defaultViewId) {
+        targetId = defaultViewId;
     }
-  }, [activeEventId]);
 
-  // --- 處理切換與加載穩定化 ---
-  useEffect(() => {
-    const targetId = activeNodeId || defaultViewId;
-    if (!targetId) return;
-    handleNodeChange(targetId);
-  }, [activeNodeId]);
+    // 3. 一般 Site Tree 選中同步 (若上述皆無，或是使用者在分頁內主動點擊 Tree)
+    if (!targetId) {
+        targetId = activeNodeId;
+    }
+
+    // 執行選取同步
+    if (targetId) {
+        // 同步 App 層級選取狀態 (確保 Site Tree 跟著連動)
+        if (onAutoSelectNode && activeNodeId !== targetId) {
+            onAutoSelectNode(targetId);
+        }
+        // 更新地圖視圖
+        handleNodeChange(targetId);
+        
+        // 顯示回退提示
+        if (fallbackAlertNeeded) {
+            alert("因其所選事件所在區域無圖資，切換到預設圖資");
+        }
+    }
+
+    isFirstLoad.current = false;
+  }, [activeEventId, activeNodeId]); // 當事件或樹狀圖選取改變時觸發
 
   const handleNodeChange = (id: string) => {
     const targetNode = findBestViewNode(id);
