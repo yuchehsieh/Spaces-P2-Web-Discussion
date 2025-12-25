@@ -75,78 +75,63 @@ const MapTab: React.FC<MapTabProps> = ({
     const node = findNodeById(SITE_TREE_DATA, id);
     if (!node) return null;
 
-    // 如果該節點本身就有圖資，直接返回
     if (INITIAL_FLOOR_PLANS.find(p => p.siteId === node.id)) return node;
 
-    // 只有「設備」層級才支援往上找
     if (node.type === 'device') {
       let current: SiteNode | null = getParentNode(id);
       while (current) {
         if (INITIAL_FLOOR_PLANS.find(p => p.siteId === current!.id)) return current;
         current = getParentNode(current!.id);
       }
-      // 如果直到 Site 都沒找到圖資，返回其直屬父層 (通常是 Zone) 以顯示錯誤引導
       return getParentNode(id);
     }
 
-    // 非設備節點（Host, Zone, Site, Group）若本身無圖資，則不回溯，返回自身顯示「無圖資」
     return node;
   };
 
-  // --- 核心邏輯：決定目前要呈現的 Node (包含分頁切換優先級判定) ---
+  // --- 核心邏輯：決定目前要呈現的 Node ---
   useEffect(() => {
     let targetId: string | null = null;
     let fallbackAlertNeeded = false;
 
-    // 優先判定權重：
-    // 1. 若當前有選中事件 (Event Priority)
     if (activeEventId) {
         const event = MOCK_EVENTS.find(e => e.id === activeEventId);
         if (event && event.sensorId) {
             const node = findBestViewNode(event.sensorId);
             if (node) {
-                // 檢查該據點是否有實際圖資
                 const hasActualPlan = INITIAL_FLOOR_PLANS.some(p => p.siteId === node.id);
                 if (hasActualPlan) {
                     targetId = node.id;
                 } else if (defaultViewId) {
-                    // 若事件所在區域無圖資，嘗試定位到預設圖資並發出提示
                     targetId = defaultViewId;
-                    fallbackAlertNeeded = isFirstLoad.current; // 僅在初次進入此 Tab 且發生回退時提示，避免地圖內操作干擾
+                    fallbackAlertNeeded = isFirstLoad.current;
                 } else {
-                    targetId = node.id; // 無預設點時，則顯示原節點的空狀態
+                    targetId = node.id;
                 }
             }
         }
     } 
     
-    // 2. 若無事件選中，且是剛切換分頁進來 (Tab Switch Priority)
     if (!targetId && isFirstLoad.current && defaultViewId) {
         targetId = defaultViewId;
     }
 
-    // 3. 一般 Site Tree 選中同步 (若上述皆無，或是使用者在分頁內主動點擊 Tree)
     if (!targetId) {
         targetId = activeNodeId;
     }
 
-    // 執行選取同步
     if (targetId) {
-        // 同步 App 層級選取狀態 (確保 Site Tree 跟著連動)
         if (onAutoSelectNode && activeNodeId !== targetId) {
             onAutoSelectNode(targetId);
         }
-        // 更新地圖視圖
         handleNodeChange(targetId);
-        
-        // 顯示回退提示
         if (fallbackAlertNeeded) {
             alert("因其所選事件所在區域無圖資，切換到預設圖資");
         }
     }
 
     isFirstLoad.current = false;
-  }, [activeEventId, activeNodeId]); // 當事件或樹狀圖選取改變時觸發
+  }, [activeEventId, activeNodeId]);
 
   const handleNodeChange = (id: string) => {
     const targetNode = findBestViewNode(id);
@@ -191,13 +176,17 @@ const MapTab: React.FC<MapTabProps> = ({
           L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
           
           config.regions?.forEach(region => {
-            L.polygon(region.coords, { 
-              color: '#3b82f6', 
-              weight: 3, 
-              fillColor: '#3b82f6', 
-              fillOpacity: 0.15, 
-              dashArray: '8, 8' 
-            }).addTo(map);
+            L.polygon(region.coords, { color: '#3b82f6', weight: 3, fillColor: '#3b82f6', fillOpacity: 0.15, dashArray: '8, 8' }).addTo(map);
+          });
+
+          // 據點標註渲染
+          config.pins?.forEach(pin => {
+              const icon = L.divIcon({ 
+                className: 'site-view-pin', 
+                html: `<div style="width:32px;height:32px;background:#ef4444;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;"><div style="transform:rotate(45deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div></div>`,
+                iconSize: [32, 32], iconAnchor: [16, 32]
+              });
+              L.marker([pin.lat, pin.lng], { icon }).addTo(map).bindPopup(`<b style="color:white;">${pin.label}</b>`, { closeButton: false });
           });
 
           // 設備標記
@@ -205,7 +194,7 @@ const MapTab: React.FC<MapTabProps> = ({
               const markerIcon = L.divIcon({
                 className: 'map-device-marker',
                 html: `<div style="width: 32px; height: 32px; background: rgba(59, 130, 246, 0.8); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.4);">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
                       </div>`,
                 iconSize: [32, 32], iconAnchor: [16, 16]
               });
@@ -216,7 +205,6 @@ const MapTab: React.FC<MapTabProps> = ({
           map.invalidateSize();
           setIsLoading(false);
         } catch (err) {
-          console.error("GIS Render Fail", err);
           setIsLoading(false);
         }
       }, 500);
@@ -233,86 +221,46 @@ const MapTab: React.FC<MapTabProps> = ({
   };
 
   const handleFitRegions = () => {
-    if (!mapRef.current || !activePlanData?.mapConfig?.regions?.length) return;
-    const allCoords: [number, number][] = [];
-    activePlanData.mapConfig.regions.forEach(r => r.coords.forEach(c => allCoords.push(c)));
-    if (allCoords.length > 0) {
-        mapRef.current.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50], animate: true });
+    if (!mapRef.current || !activePlanData?.mapConfig) return;
+    const all: any[] = [];
+    activePlanData.mapConfig.regions.forEach(r => r.coords.forEach(c => all.push(c)));
+    activePlanData.mapConfig.pins?.forEach(p => all.push([p.lat, p.lng]));
+    if (all.length > 0) {
+        mapRef.current.fitBounds(L.latLngBounds(all), { padding: [50, 50], animate: true });
     }
   };
 
-  // 動態生成空狀態文字
   const emptyStateInfo = useMemo(() => {
     if (!selectedSite || activePlanData) return null;
-    
     const originalNode = originalSelectionId ? findNodeById(SITE_TREE_DATA, originalSelectionId) : null;
-    
     if (originalNode?.type === 'device') {
         const parentZone = getParentNode(originalNode.id);
-        return {
-            targetId: parentZone?.id || originalNode.id,
-            title: "設備尚未配置視覺定位",
-            desc: `此設備所屬之「${parentZone?.label || '分區'}」及其上層區域皆無圖資，請至「平面圖中心」進行配置。`,
-            guide: `請配置「${parentZone?.label || '此分區'}」圖資`
-        };
+        return { targetId: parentZone?.id || originalNode.id, title: "設備尚未配置視覺定位", desc: `此設備及其上層區域皆無圖資，請至「平面圖中心」配置。`, guide: `請配置圖資` };
     }
-
-    return {
-        targetId: selectedSite.id,
-        title: "區域尚未配置圖資",
-        desc: `區域「${selectedSite.label}」目前無任何 GIS 或 BMP 平面圖資料，請至「平面圖中心」進行配置。`,
-        guide: `請至「平面圖中心」配置`
-    };
+    return { targetId: selectedSite.id, title: "區域尚未配置圖資", desc: `區域「${selectedSite.label}」目前無圖資資料，請至中心進行配置。`, guide: `點此進行配置` };
   }, [selectedSite, activePlanData, originalSelectionId]);
 
   return (
     <div className="flex h-full w-full relative overflow-hidden bg-black">
-        <style>{`
-            @keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }
-        `}</style>
-
-        {/* --- Top Control Bar --- */}
+        <style>{`@keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }`}</style>
         <div className="absolute top-6 right-6 z-[500] flex items-center gap-3">
            <div className="px-4 py-2 bg-[#1e293b]/80 backdrop-blur-md border border-slate-700 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl">
               <MousePointer2 size={12}/> 操作連動中
            </div>
-
            {selectedSite && activePlanData && (
-             <button 
-               onClick={handleSetDefault}
-               title="設為預設視角"
-               className={`p-2.5 rounded-xl border transition-all shadow-xl active:scale-95 ${
-                 defaultViewId === selectedSite.id
-                 ? 'bg-amber-500 border-amber-400 text-white shadow-amber-900/20' 
-                 : 'bg-slate-800/90 border-slate-700 text-slate-400 hover:text-white'
-               }`}
-             >
+             <button onClick={handleSetDefault} className={`p-2.5 rounded-xl border transition-all shadow-xl active:scale-95 ${defaultViewId === selectedSite.id ? 'bg-amber-500 border-amber-400 text-white' : 'bg-slate-800/90 border-slate-700 text-slate-400 hover:text-white'}`}>
                 <Star size={16} fill={defaultViewId === selectedSite.id ? 'currentColor' : 'none'} />
              </button>
            )}
         </div>
 
-        {/* --- Loading Spinner --- */}
         {isLoading && (
             <div className="absolute inset-0 z-[100] bg-[#050914] flex flex-col items-center justify-center gap-6">
-                <div className="relative w-24 h-24">
-                    <div className="absolute inset-0 border-4 border-blue-600/10 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-                    <div className="absolute inset-0 flex items-center justify-center text-blue-500">
-                        <Loader2 size={32} className="animate-pulse" />
-                    </div>
-                    <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
-                        <div className="w-full h-1 bg-blue-400/50 blur-sm absolute animate-[scan-line_2s_linear_infinite]"></div>
-                    </div>
-                </div>
-                <div className="text-center">
-                    <span className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] block animate-pulse">GIS Data Syncing</span>
-                    <span className="text-[9px] text-slate-600 font-bold uppercase mt-1 block">Rendering Security Layers...</span>
-                </div>
+                <Loader2 size={48} className="text-blue-500 animate-spin" />
+                <span className="text-[11px] font-black text-blue-400 uppercase tracking-widest">Rendering Map...</span>
             </div>
         )}
 
-        {/* --- Content Area --- */}
         <div className="flex-1 relative">
             {selectedSite ? (
                 <>
@@ -320,45 +268,23 @@ const MapTab: React.FC<MapTabProps> = ({
                         activePlanData.type === 'map' ? (
                             <div className="w-full h-full relative border-4 border-blue-500 shadow-[inset_0_0_100px_rgba(59,130,246,0.2)]">
                                 <div ref={mapContainerRef} className="w-full h-full bg-[#0b1121]" />
-                                <div className="absolute bottom-4 left-4 bg-black/70 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3 z-50 shadow-2xl pointer-events-none">
-                                    <Globe size={14} className="text-blue-400 animate-pulse" />
-                                    <span className="text-[11px] font-mono font-black text-white tracking-widest uppercase">GIS Active: {selectedSite.label}</span>
-                                </div>
                                 <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-[500]">
                                     <div className="flex flex-col bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
                                         <button onClick={() => mapRef.current?.zoomIn()} className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 border-b border-slate-800 transition-all"><Plus size={20}/></button>
                                         <button onClick={() => mapRef.current?.zoomOut()} className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 transition-all"><Minus size={20}/></button>
                                     </div>
-                                    <button onClick={handleFitRegions} className="p-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl shadow-blue-900/40 border border-blue-400 transition-all active:scale-95 group">
-                                        <Maximize size={20} className="group-hover:scale-110 transition-transform" />
-                                    </button>
+                                    <button onClick={handleFitRegions} className="p-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl border border-blue-400 transition-all active:scale-95 group"><Maximize size={20} /></button>
                                 </div>
                             </div>
                         ) : (
-                            <FloorPlanView 
-                                site={selectedSite} 
-                                onBack={() => {}} 
-                                initialData={activePlanData} 
-                                onSave={() => {}} 
-                                events={MOCK_EVENTS}
-                                selectedEventId={activeEventId}
-                            />
+                            <FloorPlanView site={selectedSite} onBack={() => {}} initialData={activePlanData} onSave={() => {}} events={MOCK_EVENTS} selectedEventId={activeEventId} />
                         )
                     ) : (
                         <div className="h-full w-full bg-[#050914] flex flex-col items-center justify-center animate-in zoom-in-95 duration-500">
-                            <div className="w-32 h-32 rounded-[2.5rem] bg-slate-900 border-4 border-slate-800 flex items-center justify-center text-slate-700 mb-10 shadow-inner">
-                                <AlertCircle size={64} className="text-slate-800" />
-                            </div>
-                            <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase mb-4">{emptyStateInfo?.title}</h2>
-                            <p className="text-slate-500 text-sm font-bold mb-10 max-w-md text-center leading-relaxed px-6">
-                                {emptyStateInfo?.desc}
-                            </p>
-                            <button 
-                                onClick={() => onJumpToFloorPlan?.(emptyStateInfo?.targetId!)}
-                                className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-900/20"
-                            >
-                                <ExternalLink size={18}/> {emptyStateInfo?.guide}
-                            </button>
+                            <AlertCircle size={64} className="text-slate-800 mb-10" />
+                            <h2 className="text-2xl font-black text-white uppercase mb-4">{emptyStateInfo?.title}</h2>
+                            <p className="text-slate-500 text-sm mb-10 max-w-md text-center">{emptyStateInfo?.desc}</p>
+                            <button onClick={() => onJumpToFloorPlan?.(emptyStateInfo?.targetId!)} className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-900/20"><ExternalLink size={18}/> {emptyStateInfo?.guide}</button>
                         </div>
                     )}
                 </>

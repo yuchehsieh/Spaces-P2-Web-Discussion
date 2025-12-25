@@ -12,6 +12,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
         label: '總公司 (Site)',
         type: 'site',
         isOpen: true,
+        address: '台北市內湖區內湖路一段123號',
         children: [
           {
             id: 'host-hq-1',
@@ -41,6 +42,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
         label: '新光保全-中山處 (Site)',
         type: 'site',
         isOpen: true,
+        address: '台北市中山區南京東路二段100號',
         children: [
           {
             id: 'host-zs-1',
@@ -84,6 +86,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
         label: '新光保全-北屯處 (Site)',
         type: 'site',
         isOpen: true,
+        address: '台中市北屯區崇德路三段1號',
         children: [
           {
             id: 'host-bt-1',
@@ -111,6 +114,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
         label: '新光保全-大甲處 (Site)',
         type: 'site',
         isOpen: true,
+        address: '台中市大甲區經國路1000號',
         children: [
           {
             id: 'host-dj-1',
@@ -198,7 +202,8 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
             [25.06275, 121.57915]
           ]
         }
-      ]
+      ],
+      pins: []
     },
     sensors: []
   },

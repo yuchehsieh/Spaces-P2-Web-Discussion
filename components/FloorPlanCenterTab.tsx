@@ -15,7 +15,6 @@ import {
   Maximize,
   Search,
   Plus,
-  // Added missing Minus icon
   Minus,
   Pencil,
   Eye,
@@ -34,14 +33,17 @@ import {
   Info,
   CheckCircle2,
   Layers,
-  Key,
   Database,
-  Loader2 
+  Loader2,
+  MapPin as MapPinIcon,
+  Navigation,
+  MapPin,
+  Check,
+  Smartphone
 } from 'lucide-react';
-import { SiteNode, FloorPlanData, MapRegion, SensorPosition } from '../types';
+import { SiteNode, FloorPlanData, MapRegion, SensorPosition, MapPin as MapPinType } from '../types';
 import { SITE_TREE_DATA, INITIAL_FLOOR_PLANS } from '../constants';
 
-// Declare Leaflet global variable
 declare const L: any;
 
 // --- Helper Components for Tree ---
@@ -53,30 +55,20 @@ interface TreeItemProps {
   onSelect: (id: string) => void;
   searchTerm: string;
   idsWithFloorPlan: Set<string>; 
+  isEditing: boolean;
 }
 
-const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, searchTerm, idsWithFloorPlan }) => {
+const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, searchTerm, idsWithFloorPlan, isEditing }) => {
   const [isOpen, setIsOpen] = useState(node.isOpen ?? true);
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedId === node.id;
   const hasFloorPlan = idsWithFloorPlan.has(node.id);
 
-  // 外部強迫開啟邏輯：若子節點被選中，則父節點必須開啟
-  useEffect(() => {
-    if (selectedId && node.children) {
-        const containsSelected = (nodes: SiteNode[]): boolean => nodes.some(n => n.id === selectedId || (n.children && containsSelected(n.children)));
-        if (containsSelected(node.children)) {
-            setIsOpen(true);
-        }
-    }
-  }, [selectedId]);
-
   const shouldShow = useMemo(() => {
+    if (node.type === 'device') return false;
     if (!searchTerm) return true;
     const matchSelf = node.label.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchChild = (nodes: SiteNode[]): boolean => {
-      return nodes.some(n => n.label.toLowerCase().includes(searchTerm.toLowerCase()) || (n.children && matchChild(n.children)));
-    };
+    const matchChild = (nodes: SiteNode[]): boolean => nodes.some(n => n.type !== 'device' && (n.label.toLowerCase().includes(searchTerm.toLowerCase()) || (n.children && matchChild(n.children))));
     return matchSelf || (node.children ? matchChild(node.children) : false);
   }, [node, searchTerm]);
 
@@ -87,7 +79,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
       case 'group': return <Layout size={16} className="text-blue-500" />;
       case 'site': return <Building2 size={16} className="text-blue-400" />;
       case 'host': return <Server size={14} className="text-slate-400" />;
-      case 'zone': return <FolderOpen size={14} className="text-slate-500" />;
+      case 'zone': return <FolderOpen size={14} className={isSelected ? 'text-white' : 'text-slate-500'} />;
       default: return null;
     }
   };
@@ -96,7 +88,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
     <div className="select-none">
       <div 
         onClick={() => onSelect(node.id)}
-        className={`flex items-center py-2 pr-2 cursor-pointer transition-all rounded-xl group mb-0.5 ${isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'hover:bg-slate-800 text-slate-400'}`}
+        className={`flex items-center py-2 pr-2 cursor-pointer transition-all rounded-xl group mb-0.5 ${isSelected ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}
         style={{ paddingLeft: `${level * 16 + 12}px` }}
       >
         <span 
@@ -107,28 +99,18 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
         </span>
         <span className="mr-2 shrink-0">{getIcon()}</span>
         <span className={`text-xs truncate ${isSelected ? 'font-black' : 'font-bold'}`}>{node.label}</span>
-        
         {hasFloorPlan && (
-          <div className="ml-auto flex items-center" title="此區域已配置圖資">
-            <div className={`p-1 rounded-md ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-400 animate-pulse'}`}>
-              <ImageIcon size={10} strokeWidth={3} />
-            </div>
+          <div className="ml-auto pr-1">
+             <div className={`p-1 rounded-md ${isSelected ? 'bg-white/20 text-white' : 'bg-blue-500/10 text-blue-400'}`}>
+                <ImageIcon size={10} strokeWidth={3} />
+             </div>
           </div>
         )}
       </div>
-
       {hasChildren && isOpen && (
         <div className="animate-in fade-in slide-in-from-top-1 duration-200">
           {node.children!.map(child => (
-            <TreeItem 
-              key={child.id} 
-              node={child} 
-              level={level + 1} 
-              selectedId={selectedId} 
-              onSelect={id => onSelect(id)} 
-              searchTerm={searchTerm} 
-              idsWithFloorPlan={idsWithFloorPlan}
-            />
+            <TreeItem key={child.id} node={child} level={level + 1} selectedId={selectedId} onSelect={onSelect} searchTerm={searchTerm} idsWithFloorPlan={idsWithFloorPlan} isEditing={isEditing} />
           ))}
         </div>
       )}
@@ -141,96 +123,68 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
 type MapProvider = 'opensource' | 'osm' | 'google';
 type MapLayerStyle = 'dark' | 'light';
 
-interface FloorPlanCenterTabProps {
-  initialSiteId?: string | null;
-}
-
-const FloorPlanCenterTab: React.FC<FloorPlanCenterTabProps> = ({ initialSiteId }) => {
+const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initialSiteId }) => {
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(initialSiteId || 'zone-hq-office');
   const [floorPlans, setFloorPlans] = useState<FloorPlanData[]>(INITIAL_FLOOR_PLANS);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [sourceType, setSourceType] = useState<'image' | 'map' | null>(null);
-  const [sensorToRemove, setSensorToRemove] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
-  
   const [isMapLoading, setIsMapLoading] = useState(false);
-
   const [isMapSettingsOpen, setIsMapSettingsOpen] = useState(false);
   const [mapProvider, setMapProvider] = useState<MapProvider>('opensource');
   const [mapLayerStyle, setMapLayerStyle] = useState<MapLayerStyle>('dark');
   const [googleApiKey, setGoogleApiKey] = useState('');
-
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [addressSearch, setAddressSearch] = useState('');
+  
+  // 核心交互狀態
+  const [deviceToDelete, setDeviceToDelete] = useState<{id: string, label: string} | null>(null);
+  const [imgScale, setImgScale] = useState(1);
+  const [imgOffset, setImgOffset] = useState({ x: 0, y: 0 });
+  const [draggingDeviceId, setDraggingDeviceId] = useState<string | null>(null);
 
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const viewMapContainerRef = useRef<HTMLDivElement>(null);
   const viewMapRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const currentTileLayerRef = useRef<any>(null);
-  const mapDeviceMarkersRef = useRef<Record<string, any>>({});
+  const imgRef = useRef<HTMLImageElement>(null);
   
   const activeRegionsRef = useRef<any[]>([]);
-
-  // 監聽來自外部的跳轉指令
-  useEffect(() => {
-    if (initialSiteId) {
-        setSelectedSiteId(initialSiteId);
-        setIsEditing(false);
-    }
-  }, [initialSiteId]);
+  const activePinsRef = useRef<any[]>([]);
+  const activeDeviceMarkersRef = useRef<any[]>([]);
 
   const idsWithFloorPlan = useMemo(() => new Set(floorPlans.map(p => p.siteId)), [floorPlans]);
 
-  const filteredTreeData = useMemo(() => {
-    const filter = (nodes: SiteNode[]): SiteNode[] => {
-      return nodes.filter(n => n.type !== 'device').map(n => ({
-        ...n,
-        children: n.children ? filter(n.children) : []
-      }));
-    };
-    return filter(SITE_TREE_DATA);
-  }, []);
+  const findNodeById = (nodes: SiteNode[], id: string): SiteNode | null => {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      if (n.children) {
+        const res = findNodeById(n.children, id);
+        if (res) return res;
+      }
+    }
+    return null;
+  };
 
+  const selectedNode = useMemo(() => selectedSiteId ? findNodeById(SITE_TREE_DATA, selectedSiteId) : null, [selectedSiteId]);
   const activeFloorPlan = useMemo(() => floorPlans.find(p => p.siteId === selectedSiteId), [floorPlans, selectedSiteId]);
 
   useEffect(() => {
-    if (activeFloorPlan) setSourceType(activeFloorPlan.type);
-    else if (!isEditing) setSourceType(null);
-  }, [activeFloorPlan, isEditing]);
-
-  const activeNodeLabel = useMemo(() => {
-    let label = '未選取區域';
-    const find = (nodes: SiteNode[]) => {
-      for (const n of nodes) {
-        if (n.id === selectedSiteId) { label = n.label; return; }
-        if (n.children) find(n.children);
-      }
-    };
-    find(filteredTreeData);
-    return label;
-  }, [selectedSiteId, filteredTreeData]);
+    if (activeFloorPlan) {
+      setSourceType(activeFloorPlan.type);
+    } else if (!isEditing) {
+      setSourceType(null);
+    }
+    if (activeFloorPlan?.type !== 'map' && !isEditing) {
+      setIsMapLoading(false);
+    }
+  }, [selectedSiteId, activeFloorPlan, isEditing]);
 
   const allDevicesInContext = useMemo(() => {
     if (!selectedSiteId) return [];
+    const targetNode = findNodeById(SITE_TREE_DATA, selectedSiteId);
     const devices: SiteNode[] = [];
-    const findNode = (nodes: SiteNode[]): SiteNode | null => {
-      for (const n of nodes) {
-        if (n.id === selectedSiteId) return n;
-        if (n.children) {
-          const res = findNode(n.children);
-          if (res) return res;
-        }
-      }
-      return null;
-    };
-    const targetNode = findNode(SITE_TREE_DATA);
-    const traverse = (node: SiteNode) => {
-      if (node.type === 'device') devices.push(node);
-      node.children?.forEach(traverse);
-    };
+    const traverse = (node: SiteNode) => { if (node.type === 'device') devices.push(node); node.children?.forEach(traverse); };
     if (targetNode) traverse(targetNode);
     return devices;
   }, [selectedSiteId]);
@@ -240,708 +194,508 @@ const FloorPlanCenterTab: React.FC<FloorPlanCenterTabProps> = ({ initialSiteId }
     return allDevicesInContext.filter(d => !activeFloorPlan.sensors.find(p => p.id === d.id));
   }, [allDevicesInContext, activeFloorPlan]);
 
-  const getDeviceIconString = (type: string | undefined) => {
-    switch (type) {
-      case 'camera': return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"></path><rect width="14" height="12" x="2" y="6" rx="2" ry="2"></rect></svg>';
-      case 'sensor': return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"></rect><rect width="6" height="6" x="9" y="9" rx="1"></rect><path d="M15 2v2"></path><path d="M15 20v2"></path><path d="M2 15h2"></path><path d="M2 9h2"></path><path d="M20 15h2"></path><path d="M20 9h2"></path><path d="M9 2v2"></path><path d="M9 20v2"></path></svg>';
-      case 'door': return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h3a2 2 0 0 1 2 2v14"></path><path d="M2 20h20"></path><path d="M13 20V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v16"></path></svg>';
-      default: return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"></rect><rect width="6" height="6" x="9" y="9" rx="1"></rect><path d="M15 2v2"></path><path d="M15 20v2"></path><path d="M2 15h2"></path><path d="M2 9h2"></path><path d="M20 15h2"></path><path d="M20 9h2"></path><path d="M9 2v2"></path><path d="M9 20v2"></path></svg>';
-    }
-  };
-
   const getTileUrl = (provider: MapProvider, style: MapLayerStyle) => {
     if (provider === 'osm') return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    if (provider === 'opensource') {
-      return style === 'dark' 
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-    }
+    if (provider === 'google') return 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
     return style === 'dark' 
       ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
       : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
   };
 
-  const createMapDeviceMarker = (map: any, pos: SensorPosition, editable: boolean) => {
-    const device = allDevicesInContext.find(d => d.id === pos.id);
-    const markerIcon = L.divIcon({
-      className: 'map-device-marker',
-      html: `
-        <div style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-          <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(59, 130, 246, 0.8); border: 2px solid rgba(255, 255, 255, 0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; color: white;">
-            ${getDeviceIconString(device?.deviceType)}
-          </div>
-          ${editable ? `
-          <button onclick="window.removeDeviceFromMap('${pos.id}')" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; background: #ef4444; border: 2px solid white; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 500; font-size: 10px;">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
-          ` : ''}
-          <div class="marker-label" style="position: absolute; top: 45px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: rgba(0,0,0,0.8); color: white; font-size: 9px; font-weight: 900; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); opacity: 0; pointer-events: none; transition: opacity 0.2s;">
-            ${device?.label}
-          </div>
-        </div>
-      `,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
+  // --- GIS 核心渲染邏輯 ---
+
+  const createDeviceMarker = (map: any, pos: SensorPosition, label: string, draggable: boolean = false) => {
+    const icon = L.divIcon({
+      className: 'map-device-placement',
+      html: `<div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+               <div style="width:32px;height:32px;background:rgba(37,99,235,0.9);border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;box-shadow:0 0 15px rgba(37,99,235,0.6);">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+               </div>
+               ${draggable ? `<button onclick="window.confirmDeleteDevice('${pos.id}', '${label}')" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;background:#ef4444;border:1.5px solid white;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:500;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
+               <div style="position:absolute;top:35px;background:rgba(0,0,0,0.8);color:white;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:900;white-space:nowrap;border:1px solid rgba(255,255,255,0.1);">${label}</div>
+             </div>`,
+      iconSize: [40, 40], iconAnchor: [20, 20]
     });
-
-    const marker = L.marker([pos.y, pos.x], { icon: markerIcon, draggable: editable }).addTo(map);
-    
-    if (editable) {
-        marker.on('dragend', (e: any) => {
-            const newLatLng = e.target.getLatLng();
-            setFloorPlans(prev => {
-                const next = [...prev];
-                const idx = next.findIndex(p => p.siteId === selectedSiteId);
-                if (idx > -1) {
-                    const newSensors = [...next[idx].sensors];
-                    const sIdx = newSensors.findIndex(s => s.id === pos.id);
-                    if (sIdx > -1) newSensors[sIdx] = { ...newSensors[sIdx], x: newLatLng.lng, y: newLatLng.lat };
-                    next[idx] = { ...next[idx], sensors: newSensors };
-                }
-                return next;
-            });
-        });
+    const marker = L.marker([pos.y, pos.x], { icon, draggable }).addTo(map);
+    if (draggable) {
+      marker.on('dragend', (e: any) => {
+        const nl = e.target.getLatLng();
+        setFloorPlans(p => { const next = [...p]; const i = next.findIndex(x => x.siteId === selectedSiteId); if (i > -1) { const s = [...next[i].sensors]; const si = s.findIndex(v => v.id === pos.id); if (si > -1) s[si] = { ...s[si], x: nl.lng, y: nl.lat }; next[i] = { ...next[i], sensors: s }; } return next; });
+      });
     }
-
-    return marker;
+    activeDeviceMarkersRef.current.push(marker);
   };
 
-  const createMapRegion = (regionConfig?: MapRegion) => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-    const regionId = regionConfig?.id || `region-${Date.now()}`;
+  const createMapPin = (map: any, pinConfig?: MapPinType | { lat: number, lng: number }) => {
+    const latlng = (pinConfig && 'lat' in pinConfig) ? [pinConfig.lat, pinConfig.lng] : map.getCenter();
+    const pinId = (pinConfig as MapPinType)?.id || `pin-${Date.now()}`;
+    const label = (pinConfig as MapPinType)?.label || '據點標註';
     
-    let coords;
-    if (regionConfig) {
-      coords = regionConfig.coords.map(c => L.latLng(c[0], c[1]));
-    } else {
-      const bounds = map.getBounds().pad(-0.4);
-      coords = [
-        bounds.getNorthWest(),
-        bounds.getNorthEast(),
-        bounds.getSouthEast(),
-        bounds.getSouthWest()
-      ];
-    }
+    const icon = L.divIcon({ 
+      className: 'map-site-pin', 
+      html: `<div style="position:relative;width:42px;height:42px;display:flex;align-items:center;justify-content:center;">
+               <div style="width:32px;height:32px;background:#ef4444;border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;">
+                 <div style="transform:rotate(45deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div>
+               </div>
+               <button onclick="window.deleteMapPin('${pinId}')" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;background:white;border:1px solid #ef4444;border-radius:50%;color:#ef4444;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:500;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+               <div style="position:absolute;top:40px;white-space:nowrap;background:rgba(0,0,0,0.8);color:white;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:900;border:1px solid rgba(255,255,255,0.1);">${label}</div>
+             </div>`, 
+      iconSize: [42, 42], iconAnchor: [21, 42] 
+    });
+    const marker = L.marker(latlng, { icon, draggable: true }).addTo(map);
+    activePinsRef.current.push({ id: pinId, marker, label });
+    (window as any).deleteMapPin = (id: string) => { const idx = activePinsRef.current.findIndex(p => p.id === id); if (idx > -1) { map.removeLayer(activePinsRef.current[idx].marker); activePinsRef.current.splice(idx, 1); } };
+  };
 
-    const handleStyle = `width: 14px; height: 14px; background: white; border: 3px solid #3b82f6; border-radius: 50%; box-shadow: 0 4px 8px rgba(0,0,0,0.5); cursor: pointer;`;
+  const createMapRegion = (map: any, regionConfig?: MapRegion) => {
+    const regionId = regionConfig?.id || `region-${Date.now()}`;
+    let coords = regionConfig ? regionConfig.coords.map(c => L.latLng(c[0], c[1])) : [map.getBounds().pad(-0.4).getNorthWest(), map.getBounds().pad(-0.4).getNorthEast(), map.getBounds().pad(-0.4).getSouthEast(), map.getBounds().pad(-0.4).getSouthWest()];
+    const polygon = L.polygon(coords, { color: '#3b82f6', weight: 3, fillColor: '#3b82f6', fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
     const markers: any[] = [];
-    const polygon = L.polygon(coords, {
-      color: '#3b82f6',
-      weight: 3,
-      fillColor: '#3b82f6',
-      fillOpacity: 0.2,
-      dashArray: '8, 8'
-    }).addTo(map);
-
     const updatePolygon = () => {
       const newCoords = markers.map(m => m.getLatLng());
       polygon.setLatLngs(newCoords);
-      const latSum = newCoords.reduce((sum, c) => sum + c.lat, 0);
-      const lngSum = newCoords.reduce((sum, c) => sum + c.lng, 0);
-      centerMarker.setLatLng([latSum / 4, lngSum / 4]);
+      const latSum = newCoords.reduce((s, c) => s + c.lat, 0) / newCoords.length;
+      const lngSum = newCoords.reduce((s, c) => s + c.lng, 0) / newCoords.length;
+      centerMarker.setLatLng([latSum, lngSum]);
     };
-
     coords.forEach(latlng => {
-      const marker = L.marker(latlng, {
-        draggable: true,
-        icon: L.divIcon({ className: 'custom-handle', html: `<div style="${handleStyle}"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] })
-      }).addTo(map);
-      marker.on('drag', updatePolygon);
-      markers.push(marker);
+      const m = L.marker(latlng, { draggable: true, icon: L.divIcon({ className: 'hnd', html: `<div style="width:14px;height:14px;background:white;border:3px solid #3b82f6;border-radius:50%;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>`, iconSize:[14,14], iconAnchor:[7,7] }) }).addTo(map);
+      m.on('drag', updatePolygon); markers.push(m);
     });
-
-    const centerMarker = L.marker([coords.reduce((s, c) => s + c.lat, 0) / 4, coords.reduce((s, c) => s + c.lng, 0) / 4], {
-      draggable: true,
-      icon: L.divIcon({
-        className: 'center-handle',
-        html: `
-          <div style="position: relative; width: 32px; height: 32px;">
-            <div style="width: 32px; height: 32px; background: #3b82f6; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; border: 2px solid white; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="15 19 12 22 9 19"></polyline><polyline points="19 9 22 12 19 15"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>
-            </div>
-            <button onclick="window.deleteMapRegion('${regionId}')" style="position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; background: #ef4444; border: 2px solid white; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 500; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-          </div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      })
-    }).addTo(map);
-
-    centerMarker.on('dragstart', (e: any) => {
-        centerMarker._startPos = e.target.getLatLng();
-        centerMarker._startCorners = markers.map(m => m.getLatLng());
-    });
-
+    const centerMarker = L.marker([coords.reduce((s, c) => s + c.lat, 0) / coords.length, coords.reduce((s, c) => s + c.lng, 0) / coords.length], { draggable: true, icon: L.divIcon({ className: 'ctr', html: `<div style="position:relative;width:32px;height:32px;"><div style="width:32px;height:32px;background:#3b82f6;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;border:2px solid white;box-shadow:0 5px 15px rgba(0,0,0,0.5);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="15 19 12 22 9 19"></polyline><polyline points="19 9 22 12 19 15"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg></div><button onclick="window.deleteMapRegion('${regionId}')" style="position:absolute;top:-10px;right:-10px;width:22px;height:22px;background:#ef4444;border:2px solid white;border-radius:50%;color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:600;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>`, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
+    centerMarker.on('dragstart', (e: any) => { centerMarker._startPos = e.target.getLatLng(); centerMarker._startCorners = markers.map(m => m.getLatLng()); });
     centerMarker.on('drag', (e: any) => {
-        const currentPos = e.target.getLatLng();
-        const deltaLat = currentPos.lat - centerMarker._startPos.lat;
-        const deltaLng = currentPos.lng - centerMarker._startPos.lng;
-        markers.forEach((m, i) => {
-            m.setLatLng([centerMarker._startCorners[i].lat + deltaLat, centerMarker._startCorners[i].lng + deltaLng]);
-        });
+        const cur = e.target.getLatLng(); const dLat = cur.lat - centerMarker._startPos.lat; const dLng = cur.lng - centerMarker._startPos.lng;
+        markers.forEach((m, i) => m.setLatLng([centerMarker._startCorners[i].lat + dLat, centerMarker._startCorners[i].lng + dLng]));
         polygon.setLatLngs(markers.map(m => m.getLatLng()));
     });
-
     activeRegionsRef.current.push({ id: regionId, polygon, markers, centerMarker });
+    (window as any).deleteMapRegion = (id: string) => { const idx = activeRegionsRef.current.findIndex(r => r.id === id); if (idx > -1) { const r = activeRegionsRef.current[idx]; map.removeLayer(r.polygon); r.markers.forEach((m:any) => map.removeLayer(m)); map.removeLayer(r.centerMarker); activeRegionsRef.current.splice(idx, 1); } };
   };
 
-  // Leaflet initialization (EDIT MODE)
+  // --- BMP 座標引擎 ---
+
+  const handleImgWheel = (e: React.WheelEvent) => {
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setImgScale(prev => Math.min(Math.max(0.5, prev + delta), 5));
+  };
+  const resetImgView = () => { setImgScale(1); setImgOffset({ x: 0, y: 0 }); };
+
+  const handleImgMouseMove = (e: React.MouseEvent) => {
+    // 修正：移除平移邏輯，僅保留設備拖移邏輯
+    if (draggingDeviceId && selectedSiteId && imgRef.current) {
+      const rect = imgRef.current.getBoundingClientRect();
+      const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+      const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+      setFloorPlans(prev => {
+        const next = [...prev];
+        const idx = next.findIndex(p => p.siteId === selectedSiteId);
+        if (idx > -1) {
+          const ns = [...next[idx].sensors];
+          const si = ns.findIndex(s => s.id === draggingDeviceId);
+          if (si > -1) ns[si] = { ...ns[si], x: xPercent, y: yPercent };
+          next[idx] = { ...next[idx], sensors: ns };
+        }
+        return next;
+      });
+    }
+  };
+
+  const stopImgInteraction = () => { setDraggingDeviceId(null); };
+
+  // 全域回調
+  useEffect(() => {
+    (window as any).confirmDeleteDevice = (id: string, label: string) => setDeviceToDelete({ id, label });
+    return () => { delete (window as any).confirmDeleteDevice; };
+  }, []);
+
+  // --- 地圖實例管理 ---
+
   useEffect(() => {
     if (isEditing && sourceType === 'map' && mapContainerRef.current) {
-      if (!mapRef.current) {
+      setIsMapLoading(true);
+      const timer = setTimeout(() => {
+        if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
         const config = activeFloorPlan?.mapConfig || { center: [25.0629, 121.5796], zoom: 17 };
         const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(config.center, config.zoom);
-        
-        currentTileLayerRef.current = L.tileLayer(getTileUrl(mapProvider, mapLayerStyle), { 
-          attribution: mapProvider === 'osm' ? '&copy; OSM' : '&copy; CARTO' 
-        }).addTo(map);
-
-        (window as any).deleteMapRegion = (id: string) => {
-            const idx = activeRegionsRef.current.findIndex(r => r.id === id);
-            if (idx > -1) {
-                const r = activeRegionsRef.current[idx];
-                map.removeLayer(r.polygon);
-                r.markers.forEach((m: any) => map.removeLayer(m));
-                map.removeLayer(r.centerMarker);
-                activeRegionsRef.current.splice(idx, 1);
-            }
-        };
-
-        (window as any).removeDeviceFromMap = (deviceId: string) => {
-            setSensorToRemove(deviceId);
-        };
-
-        mapRef.current = map;
-        setTimeout(() => map.invalidateSize(), 300);
-
-        if (activeFloorPlan?.mapConfig?.regions) {
-          activeFloorPlan.mapConfig.regions.forEach(r => createMapRegion(r));
-        }
-      } else {
-        if (currentTileLayerRef.current) {
-           mapRef.current.removeLayer(currentTileLayerRef.current);
-        }
-        currentTileLayerRef.current = L.tileLayer(getTileUrl(mapProvider, mapLayerStyle)).addTo(mapRef.current);
-      }
-
-      // Sync markers
-      Object.values(mapDeviceMarkersRef.current).forEach(m => mapRef.current.removeLayer(m));
-      mapDeviceMarkersRef.current = {};
-      if (activeFloorPlan?.sensors) {
-        activeFloorPlan.sensors.forEach(pos => {
-            mapDeviceMarkersRef.current[pos.id] = createMapDeviceMarker(mapRef.current, pos, true);
-        });
-      }
-
-    } else if (mapRef.current) {
-      activeRegionsRef.current.forEach(r => {
-          mapRef.current.removeLayer(r.polygon);
-          r.markers.forEach((m: any) => mapRef.current.removeLayer(m));
-          mapRef.current.removeLayer(r.centerMarker);
-      });
-      activeRegionsRef.current = [];
-      Object.values(mapDeviceMarkersRef.current).forEach(m => mapRef.current.removeLayer(m));
-      mapDeviceMarkersRef.current = {};
-      if (!isEditing || sourceType !== 'map') {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
+        L.tileLayer(getTileUrl(mapProvider, mapLayerStyle)).addTo(map);
+        activeRegionsRef.current = []; activePinsRef.current = []; activeDeviceMarkersRef.current = [];
+        if (activeFloorPlan?.mapConfig?.regions) activeFloorPlan.mapConfig.regions.forEach((r:any) => createMapRegion(map, r));
+        if (activeFloorPlan?.mapConfig?.pins) activeFloorPlan.mapConfig.pins.forEach((p:any) => createMapPin(map, p));
+        if (activeFloorPlan?.sensors) activeFloorPlan.sensors.forEach(s => { const n = allDevicesInContext.find(d => d.id === s.id); createDeviceMarker(map, s, n?.label || '未知設備', true); });
+        mapRef.current = map; map.invalidateSize(); setIsMapLoading(false);
+      }, 300);
+      return () => { clearTimeout(timer); if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
     }
-  }, [isEditing, sourceType, mapProvider, mapLayerStyle, activeFloorPlan?.sensors.length]);
+  }, [isEditing, sourceType, selectedSiteId, activeFloorPlan?.sensors.length, mapProvider, mapLayerStyle]);
 
-  // Leaflet initialization (VIEW MODE)
   useEffect(() => {
-    if (viewMapRef.current) {
-      viewMapRef.current.remove();
-      viewMapRef.current = null;
-    }
-
-    if (!isEditing && activeFloorPlan?.type === 'map') {
+    if (!isEditing && sourceType === 'map' && viewMapContainerRef.current) {
       setIsMapLoading(true);
-
-      const initTimer = setTimeout(() => {
-        if (!viewMapContainerRef.current) return;
-        
-        try {
-          const config = activeFloorPlan.mapConfig || { center: [25.0629, 121.5796], zoom: 17, regions: [] };
-          const map = L.map(viewMapContainerRef.current, { 
-            zoomControl: false, 
-            attributionControl: false 
-          }).setView(config.center, config.zoom);
-          
-          L.tileLayer(getTileUrl(mapProvider, mapLayerStyle)).addTo(map);
-          
-          config.regions?.forEach(region => {
-            L.polygon(region.coords, { 
-              color: '#3b82f6', 
-              weight: 3, 
-              fillColor: '#3b82f6', 
-              fillOpacity: 0.15, 
-              dashArray: '8, 8', 
-              interactive: false 
-            }).addTo(map);
-          });
-
-          activeFloorPlan.sensors?.forEach(pos => {
-              createMapDeviceMarker(map, pos, false);
-          });
-
-          viewMapRef.current = map;
-          map.invalidateSize();
-          setIsMapLoading(false);
-          setTimeout(() => map.invalidateSize(), 100);
-
-        } catch (err) {
-          console.error("Map initialization failed", err);
-          setIsMapLoading(false);
-        }
-      }, 500); 
-
-      return () => clearTimeout(initTimer);
-    }
-
-    return () => { 
-      if (viewMapRef.current) { 
-        viewMapRef.current.remove(); 
-        viewMapRef.current = null; 
-      } 
-    };
-  }, [isEditing, selectedSiteId, activeFloorPlan?.type, mapProvider, mapLayerStyle]);
-
-  const handleLocateRegions = () => {
-    if (!viewMapRef.current || !activeFloorPlan?.mapConfig?.regions?.length) return;
-    
-    const map = viewMapRef.current;
-    const allCoords: [number, number][] = [];
-    
-    activeFloorPlan.mapConfig.regions.forEach(region => {
-        region.coords.forEach(coord => allCoords.push(coord));
-    });
-
-    if (allCoords.length > 0) {
-        const bounds = L.latLngBounds(allCoords);
-        map.fitBounds(bounds, { 
-            padding: [50, 50], 
-            animate: true,
-            duration: 1.5 
+      const timer = setTimeout(() => {
+        if (viewMapRef.current) { viewMapRef.current.remove(); viewMapRef.current = null; }
+        const config = activeFloorPlan?.mapConfig || { center: [25.0629, 121.5796], zoom: 17 };
+        const map = L.map(viewMapContainerRef.current, { zoomControl: false, attributionControl: false }).setView(config.center, config.zoom);
+        L.tileLayer(getTileUrl(mapProvider, mapLayerStyle)).addTo(map);
+        config.regions?.forEach((r:any) => L.polygon(r.coords, { color: '#3b82f6', weight: 3, fillColor: '#3b82f6', fillOpacity: 0.1, dashArray: '8, 8', interactive: false }).addTo(map));
+        config.pins?.forEach((p:any) => {
+          const icon = L.divIcon({ className: 'v-p', html: `<div style="width:32px;height:32px;background:#ef4444;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;color:white;"><div style="transform:rotate(45deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div></div>`, iconSize:[32,32], iconAnchor:[16,32] });
+          L.marker([p.lat, p.lng], { icon }).addTo(map);
         });
+        activeFloorPlan?.sensors.forEach(s => { const n = allDevicesInContext.find(d => d.id === s.id); createDeviceMarker(map, s, n?.label || '', false); });
+        viewMapRef.current = map; map.invalidateSize(); setIsMapLoading(false);
+      }, 500);
+      return () => { clearTimeout(timer); if (viewMapRef.current) { viewMapRef.current.remove(); viewMapRef.current = null; } };
+    } else if (!isEditing && sourceType !== 'map') {
+      setIsMapLoading(false);
     }
-  };
-
-  const handleSiteSelect = (id: string) => {
-    setSelectedSiteId(id);
-    setIsEditing(false);
-    setScale(1);
-    setOffset({ x: 0, y: 0 });
-    const target = floorPlans.find(p => p.siteId === id);
-    if (target?.type === 'map') {
-      setIsMapLoading(true);
-    }
-  };
+  }, [isEditing, selectedSiteId, sourceType, mapProvider, mapLayerStyle]);
 
   const handleSaveAllConfig = () => {
     if (!selectedSiteId) return;
     if (sourceType === 'map' && mapRef.current) {
-        const savedRegions: MapRegion[] = activeRegionsRef.current.map(r => {
-            const rawLatLngs = r.polygon.getLatLngs();
-            const latLngs = Array.isArray(rawLatLngs[0]) ? rawLatLngs[0] : rawLatLngs;
-            return { 
-              id: r.id, 
-              coords: latLngs.map((ll: any) => [ll.lat, ll.lng] as [number, number]) 
-            };
-        });
-        const center = mapRef.current.getCenter();
-        setFloorPlans(prev => {
-            const next = [...prev];
-            const idx = next.findIndex(p => p.siteId === selectedSiteId);
-            const mapConfig = { center: [center.lat, center.lng] as [number, number], zoom: mapRef.current.getZoom(), regions: savedRegions };
-            if (idx > -1) next[idx] = { ...next[idx], type: 'map', mapConfig };
-            else next.push({ siteId: selectedSiteId, type: 'map', mapConfig, sensors: [] });
-            return next;
-        });
+      const map = mapRef.current;
+      const savedRegions: MapRegion[] = activeRegionsRef.current.map(r => { const raw = r.polygon.getLatLngs(); const outer = Array.isArray(raw[0]) ? raw[0] : raw; return { id: r.id, coords: outer.map((l: any) => [l.lat, l.lng]) }; });
+      const savedPins: MapPinType[] = activePinsRef.current.map(p => ({ id: p.id, label: p.label, lat: p.marker.getLatLng().lat, lng: p.marker.getLatLng().lng }));
+      setFloorPlans(prev => { const next = [...prev]; const idx = next.findIndex(p => p.siteId === selectedSiteId); const mapConfig = { center: [map.getCenter().lat, map.getCenter().lng] as [number, number], zoom: map.getZoom(), regions: savedRegions, pins: savedPins }; if (idx > -1) next[idx] = { ...next[idx], type: 'map', mapConfig }; else next.push({ siteId: selectedSiteId, type: 'map', mapConfig, sensors: [] }); return next; });
     }
     setIsEditing(false);
   };
 
-  const handleDragOver = (e: React.DragEvent) => { if (!isEditing) return; e.preventDefault(); };
   const handleDrop = (e: React.DragEvent) => {
     if (!isEditing || !selectedSiteId) return;
     e.preventDefault();
     const sensorId = e.dataTransfer.getData('sensorId');
-    if (!sensorId) return;
-
-    let x, y;
+    const toolType = e.dataTransfer.getData('toolType');
+    
     if (sourceType === 'map' && mapRef.current) {
-        const rect = mapContainerRef.current!.getBoundingClientRect();
-        const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
-        const latlng = mapRef.current.containerPointToLatLng(point);
-        x = latlng.lng;
-        y = latlng.lat;
-    } else if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        x = ((e.clientX - rect.left) / rect.width) * 100;
-        y = ((e.clientX - rect.top) / rect.height) * 100;
-        x = Math.max(0, Math.min(100, x));
-        y = Math.max(0, Math.min(100, y));
-    } else return;
+      const rect = mapContainerRef.current!.getBoundingClientRect();
+      const latlng = mapRef.current.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+      
+      // 關鍵修復：從當前的 Ref 提取最新的地圖配置，確保不會因為 React 重新渲染而丟失
+      const savedRegions: MapRegion[] = activeRegionsRef.current.map(r => { 
+        const raw = r.polygon.getLatLngs(); 
+        const outer = Array.isArray(raw[0]) ? raw[0] : raw; 
+        return { id: r.id, coords: outer.map((l: any) => [l.lat, l.lng]) }; 
+      });
+      const savedPins: MapPinType[] = activePinsRef.current.map(p => ({ 
+        id: p.id, label: p.label, lat: p.marker.getLatLng().lat, lng: p.marker.getLatLng().lng 
+      }));
+      
+      const mapConfig = { 
+        center: [mapRef.current.getCenter().lat, mapRef.current.getCenter().lng] as [number, number], 
+        zoom: mapRef.current.getZoom(), 
+        regions: savedRegions, 
+        pins: savedPins 
+      };
 
-    setFloorPlans(prev => {
-      const next = [...prev];
-      const idx = next.findIndex(p => p.siteId === selectedSiteId);
-      if (idx === -1) next.push({ siteId: selectedSiteId, type: sourceType || 'image', sensors: [{ id: sensorId, x, y }] });
-      else {
-        const newSensors = [...next[idx].sensors];
-        const existing = newSensors.findIndex(s => s.id === sensorId);
-        if (existing > -1) newSensors[existing] = { ...newSensors[existing], x, y };
-        else newSensors.push({ id: sensorId, x, y });
-        next[idx] = { ...next[idx], sensors: newSensors, type: sourceType || 'image' };
+      if (toolType === 'map-pin') { 
+        const newPinId = `pin-${Date.now()}`;
+        const newPin = { id: newPinId, label: '據點標註', lat: latlng.lat, lng: latlng.lng };
+        createMapPin(mapRef.current, newPin); 
+        
+        // 立即同步回 State，防止掉入下一個元素時消失
+        setFloorPlans(prev => {
+          const next = [...prev];
+          const idx = next.findIndex(p => p.siteId === selectedSiteId);
+          const updatedConfig = { ...mapConfig, pins: [...savedPins, newPin] };
+          if (idx === -1) next.push({ siteId: selectedSiteId, type: 'map', mapConfig: updatedConfig, sensors: [] });
+          else next[idx] = { ...next[idx], mapConfig: updatedConfig, type: 'map' };
+          return next;
+        });
       }
-      return next;
-    });
-  };
-
-  const getDeviceIcon = (type: string | undefined) => {
-    switch (type) {
-      case 'camera': return <Video size={14} />;
-      case 'sensor': return <Cpu size={14} />;
-      case 'door': return <DoorOpen size={14} />;
-      case 'emergency': return <Bell size={14} />;
-      default: return <Cpu size={14} />;
+      else if (sensorId) {
+        setFloorPlans(prev => { 
+          const next = [...prev]; 
+          const idx = next.findIndex(p => p.siteId === selectedSiteId); 
+          const newSensor = { id: sensorId, x: latlng.lng, y: latlng.lat }; 
+          
+          if (idx === -1) {
+            next.push({ siteId: selectedSiteId, type: 'map', mapConfig, sensors: [newSensor] }); 
+          } else { 
+            const ns = [...next[idx].sensors]; 
+            const si = ns.findIndex(s => s.id === sensorId); 
+            if (si > -1) ns[si] = newSensor; else ns.push(newSensor); 
+            next[idx] = { ...next[idx], sensors: ns, type: 'map', mapConfig }; 
+          } 
+          return next; 
+        });
+      }
+    } else if (sourceType === 'image' && imgRef.current) {
+      const rect = imgRef.current.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      setFloorPlans(prev => { const next = [...prev]; const idx = next.findIndex(p => p.siteId === selectedSiteId); const newS = { id: sensorId, x, y }; if (idx > -1) { const ns = [...next[idx].sensors]; const si = ns.findIndex(s => s.id === sensorId); if (si > -1) ns[si] = newS; else ns.push(newS); next[idx] = { ...next[idx], sensors: ns }; } return next; });
     }
   };
 
   return (
     <div className="flex h-full w-full bg-[#050914] text-slate-200 overflow-hidden relative font-sans">
-      <style>{`
-        .map-device-marker:hover .marker-label { opacity: 1 !important; }
-        .map-device-marker { transition: transform 0.2s; }
-        .map-device-marker:hover { transform: scale(1.1); z-index: 1000 !important; }
-        @keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }
-      `}</style>
       
-      {/* Sidebar */}
-      <div className="w-80 border-r border-slate-800 bg-[#0b1121] flex flex-col shrink-0">
-        <div className="p-4 border-b border-slate-800/50">
+      {/* Sidebar - Site Tree & 待配置設備區 */}
+      <div className="w-80 border-r border-slate-800 bg-[#0b1121] flex flex-col shrink-0 overflow-hidden relative z-50">
+        <div className="p-4 border-b border-slate-800/50 bg-[#0b1121]">
           <div className="relative">
             <input type="text" placeholder="搜尋區域或分區..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-xs text-slate-200 outline-none focus:border-blue-500 shadow-inner" />
             <Search size={14} className="absolute left-3.5 top-3 text-slate-600" />
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className={`overflow-y-auto custom-scrollbar p-3 transition-all duration-500 ${isEditing ? 'flex-1' : 'h-full'}`}>
-            {filteredTreeData.map(node => (
-              <TreeItem 
-                key={node.id} 
-                node={node} 
-                level={0} 
-                selectedId={selectedSiteId} 
-                onSelect={handleSiteSelect} 
-                searchTerm={searchTerm} 
-                idsWithFloorPlan={idsWithFloorPlan}
-              />
-            ))}
-          </div>
-
-          {isEditing && (
-            <div className="h-1/3 border-t border-slate-800 bg-[#0a0f1e] overflow-y-auto custom-scrollbar animate-in slide-in-from-bottom-2 duration-300">
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                      待配置設備 ({unplacedDevices.length})
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3">
-                      {unplacedDevices.map(device => (
-                      <div key={device.id} draggable onDragStart={e => e.dataTransfer.setData('sensorId', device.id)} className="p-4 bg-slate-900 border border-slate-800 rounded-2xl transition-all group shadow-lg cursor-grab active:cursor-grabbing hover:border-blue-500">
-                          <div className="flex items-center gap-3">
-                              <div className="p-2 bg-slate-800 rounded-lg text-slate-400 group-hover:text-blue-400">{getDeviceIcon(device.deviceType)}</div>
-                              <div className="flex-1 min-w-0"><div className="text-xs font-bold text-slate-200 truncate">{device.label}</div><div className="text-[9px] text-slate-600 font-mono">ID: {device.id}</div></div>
-                          </div>
-                      </div>
-                      ))}
-                      {unplacedDevices.length === 0 && <div className="p-8 opacity-20 italic text-center text-[10px] font-bold">區域設備已全數就緒</div>}
-                  </div>
-                </div>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+          {SITE_TREE_DATA.map(node => (
+            <TreeItem key={node.id} node={node} level={0} selectedId={selectedSiteId} onSelect={(id) => { setSelectedSiteId(id); setIsEditing(false); }} searchTerm={searchTerm} idsWithFloorPlan={idsWithFloorPlan} isEditing={isEditing} />
+          ))}
         </div>
+
+        {/* 待配置設備區塊 (下滑動畫) */}
+        {isEditing && (
+           <div className="h-2/5 border-t border-slate-800 bg-[#070b14] flex flex-col animate-in slide-in-from-top-full duration-1000 ease-out shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
+              <div className="p-4 flex items-center justify-between border-b border-slate-800/30">
+                 <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Cpu size={14} className="text-blue-500"/> 待配置設備 ({unplacedDevices.length})</span>
+                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+                 {unplacedDevices.map(dev => (
+                   <div 
+                    key={dev.id} draggable onDragStart={e => e.dataTransfer.setData('sensorId', dev.id)}
+                    className="bg-[#111827] border border-slate-800 rounded-2xl p-3 flex items-center gap-4 cursor-grab active:cursor-grabbing hover:border-blue-500/50 hover:bg-blue-600/5 transition-all group shadow-md"
+                   >
+                      <div className="w-11 h-11 rounded-full bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-[0_0_15px_rgba(37,99,235,0.15)]">
+                         {dev.deviceType === 'camera' ? <Video size={18}/> : <Cpu size={18}/>}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                         <span className="text-[13px] font-black text-slate-200 truncate">{dev.label}</span>
+                         <span className="text-[8px] font-bold text-slate-600 uppercase tracking-tighter truncate">SN: {dev.id.toUpperCase()}</span>
+                      </div>
+                   </div>
+                 ))}
+                 {unplacedDevices.length === 0 && (
+                   <div className="flex flex-col items-center justify-center h-full opacity-10"><CheckCircle2 size={40}/><span className="text-[10px] font-black uppercase mt-2">All Clear</span></div>
+                 )}
+              </div>
+           </div>
+        )}
       </div>
 
-      {/* Main Viewport */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#050914]">
         {selectedSiteId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Header Toolset */}
-            <div className="p-4 bg-[#111827] border-b border-slate-800 flex items-center justify-between z-50 shrink-0">
+            <div className="p-4 bg-[#111827] border-b border-slate-800 flex items-center justify-between z-[100] shrink-0">
               <div className="flex items-center gap-5">
-                <div className="flex flex-col"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">區域配置狀態</span><h3 className="text-lg font-black text-white italic tracking-tight">{activeNodeLabel}</h3></div>
+                <div className="flex flex-col"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">區域配置狀態</span><h3 className="text-lg font-black text-white italic tracking-tight">{selectedNode?.label}</h3></div>
                 <div className="h-8 w-px bg-slate-800"></div>
-                <div className={`px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border flex items-center gap-2 transition-all ${isEditing ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-800/50 border-slate-700 text-slate-400'}`}>
+                <div className={`px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border flex items-center gap-2 ${isEditing ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-800/50 border-slate-700 text-slate-400'}`}>
                   {isEditing ? <><Pencil size={12}/> 編輯模式</> : <><Eye size={12}/> 檢視模式</>}
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 {isEditing ? (
                   <>
-                    {activeFloorPlan && (
-                      <button onClick={() => setIsResetting(true)} className="px-5 py-2.5 bg-red-950/20 hover:bg-red-600/20 text-red-500 rounded-xl font-bold text-xs border border-red-900/30 transition-all uppercase tracking-widest flex items-center gap-2"><RefreshCw size={14}/> 初始化</button>
+                    {!!activeFloorPlan && (
+                       <button onClick={() => setIsResetting(true)} className="px-5 py-2.5 bg-red-950/20 hover:bg-red-600/20 text-red-500 rounded-xl font-bold text-xs border border-red-900/30 flex items-center gap-2 transition-all shadow-lg"><RefreshCw size={14}/> 初始化配置</button>
                     )}
-                    <button onClick={() => setIsEditing(false)} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs border border-slate-700 uppercase tracking-widest transition-all">取消</button>
-                    <button onClick={handleSaveAllConfig} className="px-10 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/40 ring-1 ring-white/10 transition-all">儲存配置</button>
+                    <button onClick={() => { setIsEditing(false); setIsMapLoading(false); }} className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs border border-slate-700">取消</button>
+                    <button onClick={handleSaveAllConfig} className="px-10 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase shadow-xl ring-1 ring-white/10 transition-all">儲存變更</button>
                   </>
                 ) : (
-                  <button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/40 flex items-center gap-3 transition-all group"><Pencil size={16} className="group-hover:rotate-12 transition-transform" /> 進入編輯模式</button>
+                  <button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-2.5 rounded-xl font-black text-xs uppercase shadow-xl flex items-center gap-3 active:scale-95 transition-all"><Pencil size={16} /> 進入編輯模式</button>
                 )}
               </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
-              <div className="flex-1 bg-black relative overflow-hidden flex items-center justify-center select-none" onDragOver={handleDragOver} onDrop={handleDrop}>
-                
-                {/* 1. INITIAL SOURCE SELECTION */}
-                {isEditing && !sourceType && (
-                  <div className="flex flex-col items-center gap-10 animate-in zoom-in-95 duration-500">
-                    <div className="text-center space-y-2">
-                       <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">選取平面圖來源</h2>
-                       <p className="text-sm text-slate-500 font-bold uppercase tracking-[0.2em]">請指定此分區使用的地理資訊圖層</p>
-                    </div>
-                    <div className="flex gap-8">
-                       <button onClick={() => setSourceType('map')} className="w-64 h-64 flex flex-col items-center justify-center gap-6 bg-[#111827] border-2 border-slate-800 rounded-[3rem] hover:border-blue-500 hover:bg-blue-600/5 transition-all group">
-                          <div className="p-6 bg-slate-800 rounded-3xl text-slate-400 group-hover:text-blue-400 transition-colors"><Database size={24} /></div>
-                          <div className="text-center">
-                             <span className="block text-lg font-black text-white uppercase tracking-widest">地圖選取</span>
-                             <span className="text-[10px] text-slate-600 font-bold uppercase mt-1 block">使用 GIS 地理座標系統</span>
-                          </div>
-                       </button>
-                       <button onClick={() => setSourceType('image')} className="w-64 h-64 flex flex-col items-center justify-center gap-6 bg-[#111827] border-2 border-slate-800 rounded-[3rem] hover:border-blue-500 hover:bg-blue-600/5 transition-all group">
-                          <div className="p-6 bg-slate-800 rounded-3xl text-slate-400 group-hover:text-blue-400 transition-colors"><Upload size={48} /></div>
-                          <div className="text-center">
-                             <span className="block text-lg font-black text-white uppercase tracking-widest">影像上傳</span>
-                             <span className="text-[10px] text-slate-600 font-bold uppercase mt-1 block">使用 自定義平面圖圖檔</span>
-                          </div>
-                       </button>
-                    </div>
+            <div 
+              className={`flex-1 bg-black relative overflow-hidden flex items-center justify-center select-none ${draggingDeviceId ? 'cursor-grabbing' : 'cursor-default'}`} 
+              onDragOver={e => e.preventDefault()} 
+              onDrop={handleDrop}
+              onWheel={handleImgWheel}
+              onMouseMove={handleImgMouseMove}
+              onMouseUp={stopImgInteraction}
+              onMouseLeave={stopImgInteraction}
+            >
+                {isMapLoading && (
+                  <div className="absolute inset-0 z-[600] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
+                     <Loader2 size={48} className="text-blue-500 animate-spin" />
+                     <span className="text-[11px] font-black text-blue-400 uppercase tracking-widest animate-pulse">Rendering GIS Intelligence...</span>
                   </div>
                 )}
 
-                {/* 2. IMAGE CONTENT (EDIT & VIEW) */}
-                {sourceType === 'image' && activeFloorPlan?.imageUrl && (
-                   <div className="w-full h-full flex items-center justify-center">
-                      <div className="relative inline-block" style={{ transform: `scale(${scale}) translate(${offset.x}px, ${offset.y}px)`, transition: 'transform 0.3s' }}>
-                        <img src={activeFloorPlan.imageUrl} className="max-w-[85vw] max-h-[80vh] block rounded-lg border border-slate-700 bg-slate-900/50 pointer-events-none shadow-2xl" />
-                        <div ref={containerRef} className="absolute inset-0 z-20 pointer-events-none">
-                           {activeFloorPlan.sensors.map(pos => {
-                             const device = allDevicesInContext.find(d => d.id === pos.id);
-                             return (
-                               <div key={pos.id} draggable={isEditing} onDragStart={e => e.dataTransfer.setData('sensorId', pos.id)} className={`absolute -translate-x-1/2 -translate-y-1/2 z-40 group pointer-events-auto ${isEditing ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`} style={{ left: `${pos.x}%`, top: `${pos.y}%` }}>
-                                  <div className={`w-10 h-10 rounded-full border-2 border-white/20 bg-blue-600/80 flex items-center justify-center shadow-lg transition-all ${isEditing ? 'hover:scale-125 hover:bg-blue-500' : ''}`}>
-                                     {getDeviceIcon(device?.deviceType)}
-                                     {isEditing && <button onClick={() => setSensorToRemove(pos.id)} className="absolute -top-2 -right-2 bg-red-600 rounded-full p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={10}/></button>}
-                                     <div className="absolute top-12 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/80 px-2 py-1 rounded text-[9px] font-black text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-white/10 shadow-2xl uppercase tracking-widest">{device?.label}</div>
-                                  </div>
-                               </div>
-                             );
-                           })}
+                {/* 1. 未配置狀態 */}
+                {!activeFloorPlan && !isEditing && (
+                    <div className="flex flex-col items-center justify-center h-full gap-8 animate-in zoom-in-95 duration-500">
+                        <div className="w-48 h-48 rounded-[3.5rem] bg-[#0b1121]/80 border border-slate-800 flex items-center justify-center text-slate-800 shadow-[inset_0_0_60px_rgba(0,0,0,0.7)] ring-1 ring-white/5">
+                            <Layout size={80} strokeWidth={1} />
                         </div>
-                      </div>
-                   </div>
+                        <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-2">未配置區域圖資</h2>
+                        <button onClick={() => setIsEditing(true)} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-black text-sm uppercase tracking-widest shadow-[0_10px_40px_rgba(37,99,235,0.4)] active:scale-95 transition-all ring-1 ring-white/10">進入編輯模式</button>
+                    </div>
                 )}
 
-                {/* 3. MAP EDITING INTERFACE */}
-                {isEditing && sourceType === 'map' && (
+                {/* 2. GIS 檢視/編輯 (搜尋框) */}
+                {sourceType === 'map' && (
                   <div className="w-full h-full relative">
-                    <div ref={mapContainerRef} className="w-full h-full z-10" />
-                    <div className="absolute bottom-8 right-8 z-[500] flex flex-col gap-3">
-                        <div className="flex flex-col bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
-                           <button onClick={() => createMapRegion()} title="新增藍色選取框" className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 transition-all group">
-                              <Square size={20} className="group-active:scale-90 transition-transform" />
-                           </button>
+                    {isEditing && (
+                      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[500] w-full max-w-xl px-4 animate-in slide-in-from-top-4">
+                        <div className="relative bg-[#1e293b]/90 backdrop-blur-xl border border-slate-700 rounded-2xl flex items-center p-1.5 shadow-2xl">
+                             <div className="p-2.5 text-blue-400"><Navigation size={20} className="animate-pulse" /></div>
+                             <input type="text" placeholder="搜尋地址或快速定位..." value={addressSearch} onChange={e => setAddressSearch(e.target.value)} className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-white px-2 placeholder:text-slate-600" />
+                             <button className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg active:scale-95 transition-all"><Search size={18} /></button>
                         </div>
-                        <div className="flex flex-col bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
-                           <button 
-                             onClick={() => setIsMapSettingsOpen(true)}
-                             title="地圖進階設定" 
-                             className={`p-3.5 transition-all group ${isMapSettingsOpen ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700'}`}
-                           >
-                              <Settings size={20} className="group-hover:rotate-45 transition-transform" />
-                           </button>
-                        </div>
-                        <div className="flex flex-col bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
-                           <button onClick={() => mapRef.current?.zoomIn()} className="p-3.5 text-slate-300 hover:text-white border-b border-slate-700 transition-all"><Plus size={20} /></button>
-                           {/* Fixed Minus icon usage */}
-                           <button onClick={() => mapRef.current?.zoomOut()} className="p-3.5 text-slate-300 hover:text-white transition-all"><Minus size={20} /></button>
-                        </div>
+                      </div>
+                    )}
+                    <div ref={isEditing ? mapContainerRef : viewMapContainerRef} className="w-full h-full" />
+                    <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-[500]">
+                       {isEditing && (
+                         <>
+                           <button draggable onDragStart={e => e.dataTransfer.setData('toolType', 'map-pin')} onClick={() => createMapPin(mapRef.current)} className="p-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl shadow-xl transition-all active:scale-90 cursor-grab active:cursor-grabbing"><MapPinIcon size={24} /></button>
+                           <button onClick={() => createMapRegion(mapRef.current)} className="p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl transition-all active:scale-90"><Square size={24} /></button>
+                           <button onClick={() => setIsMapSettingsOpen(true)} className="p-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl shadow-xl transition-all"><Settings size={24} /></button>
+                         </>
+                       )}
+                       {!isEditing && <button onClick={() => { if (viewMapRef.current) { const all:any[] = []; activeFloorPlan?.mapConfig?.regions.forEach((r:any) => r.coords.forEach((c:any) => all.push(c))); if (all.length) viewMapRef.current.fitBounds(L.latLngBounds(all), { padding: [50, 50], animate: true }); } }} className="p-4 bg-blue-600 text-white rounded-2xl shadow-xl active:scale-95"><Maximize size={24} /></button>}
+                       <div className="flex flex-col bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
+                          <button onClick={() => (isEditing ? mapRef.current : viewMapRef.current)?.zoomIn()} className="p-4 text-slate-300 hover:text-white hover:bg-blue-600 border-b border-slate-800"><Plus size={24}/></button>
+                          <button onClick={() => (isEditing ? mapRef.current : viewMapRef.current)?.zoomOut()} className="p-4 text-slate-300 hover:text-white hover:bg-blue-600"><Minus size={24}/></button>
+                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* 4. MAP VIEW MODE (NON-EDITING) */}
-                {!isEditing && sourceType === 'map' && activeFloorPlan?.mapConfig && (
-                   <div className="w-full h-full relative border-4 border-blue-500 shadow-[inset_0_0_100px_rgba(59,130,246,0.3)]">
-                      {isMapLoading && (
-                        <div className="absolute inset-0 z-[100] bg-[#0b1121] flex flex-col items-center justify-center gap-6">
-                           <div className="relative w-24 h-24">
-                              <div className="absolute inset-0 border-4 border-blue-600/10 rounded-full"></div>
-                              <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-                              <div className="absolute inset-0 flex items-center justify-center text-blue-500">
-                                 <Loader2 size={32} className="animate-pulse" />
-                              </div>
-                              <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
-                                 <div className="w-full h-1 bg-blue-400/50 blur-sm absolute animate-[scan-line_2s_linear_infinite]"></div>
-                              </div>
-                           </div>
-                           <div className="text-center">
-                              <span className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em] block animate-pulse">GIS Data Syncing</span>
-                              <span className="text-[9px] text-slate-600 font-bold uppercase mt-1 block">Rendering Distributed Map Layers...</span>
-                           </div>
-                        </div>
-                      )}
-                      
-                      <div ref={viewMapContainerRef} className="w-full h-full bg-slate-900" />
-                      <div className="absolute bottom-4 left-4 bg-black/70 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3 z-50 shadow-2xl pointer-events-none">
-                         <Globe size={14} className="text-blue-400 animate-pulse" />
-                         <span className="text-[11px] font-mono font-black text-white tracking-widest uppercase">GIS Active Layer: {activeNodeLabel}</span>
-                      </div>
-                      <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-[500]">
-                         <div className="flex flex-col bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
-                            <button onClick={() => viewMapRef.current?.zoomIn()} className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 border-b border-slate-800 transition-all"><Plus size={20}/></button>
-                            {/* Fixed Minus icon usage */}
-                            <button onClick={() => viewMapRef.current?.zoomOut()} className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 transition-all"><Minus size={20}/></button>
-                         </div>
-                         <button onClick={handleLocateRegions} title="快速定位藍色虛線框" className="p-3.5 bg-blue-600/90 backdrop-blur-md hover:bg-blue-500 text-white rounded-2xl shadow-xl shadow-blue-900/40 border border-blue-400 transition-all active:scale-95 group">
-                            <Maximize size={20} className="group-hover:scale-110 transition-transform" />
-                         </button>
-                      </div>
-                   </div>
-                )}
-
-                {/* Common Viewport Controls for non-map source */}
+                {/* 3. BMP 檢視與編輯 */}
                 {sourceType === 'image' && activeFloorPlan?.imageUrl && (
-                   <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-50">
-                      <button onClick={() => setScale(prev => Math.min(prev + 0.2, 5))} className="p-3 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl backdrop-blur-md border border-slate-700 shadow-xl"><ZoomIn size={18}/></button>
-                      <button onClick={() => setScale(prev => Math.max(prev - 0.2, 0.5))} className="p-3 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl backdrop-blur-md border border-slate-700 shadow-xl"><ZoomOut size={18}/></button>
-                      <button onClick={() => { setScale(1); setOffset({x:0,y:0}); }} className="p-3 bg-blue-600/80 hover:bg-blue-500 text-white rounded-xl backdrop-blur-md border border-blue-500 shadow-xl"><Maximize size={18}/></button>
-                   </div>
-                )}
-
-                {/* Empty states */}
-                {!isEditing && !activeFloorPlan && (
-                  <div className="flex flex-col items-center gap-10 animate-in fade-in duration-700">
-                    <div className="w-32 h-32 rounded-[2.5rem] bg-slate-900 border-4 border-slate-800 flex items-center justify-center text-slate-700 animate-pulse"><Layout size={64} /></div>
-                    <div className="text-center space-y-2"><p className="text-2xl font-black text-slate-300 italic tracking-tighter uppercase">未配置區域圖資</p></div>
-                    <button onClick={() => setIsEditing(true)} className="px-12 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.5rem] shadow-xl shadow-blue-900/40 flex items-center gap-3 font-black text-xs uppercase tracking-widest ring-1 ring-white/10 transition-all">進入編輯模式</button>
+                  <div className="w-full h-full relative overflow-hidden flex items-center justify-center">
+                    {/* 修正：移除平移用的 translate 變量中的滑鼠交互部分 */}
+                    <div className="relative transition-transform duration-75 ease-out inline-block" style={{ transform: `translate(${imgOffset.x}px, ${imgOffset.y}px) scale(${imgScale})` }}>
+                      <img ref={imgRef} src={activeFloorPlan.imageUrl} className="max-w-[85vw] max-h-[80vh] block rounded-lg border border-slate-700 shadow-2xl" />
+                      <div className="absolute inset-0 z-20 pointer-events-none">
+                         {activeFloorPlan.sensors.map(pos => {
+                           const n = allDevicesInContext.find(d => d.id === pos.id);
+                           return (
+                             <div key={pos.id} className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto group ${isEditing ? 'cursor-move' : ''}`} style={{ left: `${pos.x}%`, top: `${pos.y}%` }} onMouseDown={(e) => { if(isEditing) { e.stopPropagation(); setDraggingDeviceId(pos.id); } }}>
+                                <div className="w-10 h-10 rounded-full border-2 border-white bg-blue-600 flex items-center justify-center shadow-xl text-white relative shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+                                   {n?.deviceType === 'camera' ? <Video size={18}/> : <Cpu size={18}/>}
+                                   {isEditing && (
+                                     <button onMouseDown={(e) => e.stopPropagation()} onClick={() => setDeviceToDelete({id: pos.id, label: n?.label || ''})} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full border border-white text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><X size={10}/></button>
+                                   )}
+                                </div>
+                                <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-0.5 rounded text-[9px] font-black text-white whitespace-nowrap border border-white/10 shadow-xl">{n?.label}</div>
+                             </div>
+                           );
+                         })}
+                      </div>
+                    </div>
+                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 p-2 rounded-2xl flex items-center gap-3 shadow-2xl z-[100]">
+                       <button onClick={() => setImgScale(p => Math.max(0.5, p - 0.2))} className="p-2.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-xl"><ZoomOut size={20}/></button>
+                       <div className="w-12 text-center text-xs font-mono font-black text-blue-400">{(imgScale * 100).toFixed(0)}%</div>
+                       <button onClick={() => setImgScale(p => Math.min(5, p + 0.2))} className="p-2.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-xl"><ZoomIn size={20}/></button>
+                       <div className="w-px h-6 bg-slate-700 mx-1"></div>
+                       <button onClick={resetImgView} className="px-4 py-2 hover:bg-slate-700 rounded-xl text-slate-300 font-black text-[10px] uppercase tracking-widest flex items-center gap-2"><Maximize size={16}/> Reset</button>
+                    </div>
                   </div>
                 )}
-              </div>
+
+                {/* 4. 來源選取 */}
+                {isEditing && !sourceType && (
+                   <div className="flex flex-col items-center gap-10 animate-in zoom-in-95">
+                     <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">選取平面圖來源</h2>
+                     <div className="flex gap-8">
+                        <button onClick={() => setSourceType('map')} className="w-64 h-64 flex flex-col items-center justify-center gap-6 bg-[#111827] border-2 border-slate-800 rounded-[3.5rem] hover:border-blue-500 hover:bg-blue-600/5 transition-all group shadow-2xl"><div className="p-6 bg-slate-800 rounded-3xl text-slate-400 group-hover:text-blue-400 transition-colors shadow-inner"><Database size={28} /></div><span className="text-lg font-black text-white uppercase tracking-widest">地圖選取 (GIS)</span></button>
+                        <button onClick={() => setSourceType('image')} className="w-64 h-64 flex flex-col items-center justify-center gap-6 bg-[#111827] border-2 border-slate-800 rounded-[3.5rem] hover:border-blue-500 hover:bg-blue-600/5 transition-all group shadow-2xl"><div className="p-6 bg-slate-800 rounded-3xl text-slate-400 group-hover:text-blue-400 transition-colors shadow-inner"><Upload size={28} /></div><span className="text-lg font-black text-white uppercase tracking-widest">影像上傳 (BMP)</span></button>
+                     </div>
+                   </div>
+                )}
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center opacity-20 animate-in fade-in duration-1000"><Layout size={100} /><span className="text-sm font-black uppercase tracking-[0.5em] mt-6">Select a region to manage</span></div>
+          <div className="flex-1 flex flex-col items-center justify-center opacity-20"><Layout size={100} /><span className="text-sm font-black uppercase mt-6 tracking-[0.2em]">Select an Area to Configure</span></div>
         )}
       </div>
 
-      {/* Map Service Settings Modal */}
-      {isMapSettingsOpen && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-white/5">
-              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40">
-                 <div className="flex items-center gap-5">
-                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40"><Globe size={28} /></div>
-                    <div>
-                       <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">地圖服務配置</h2>
-                       <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Map Service Provider & Visualization Settings</p>
-                    </div>
-                 </div>
-                 <button onClick={() => setIsMapSettingsOpen(false)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all"><X size={28} /></button>
+      {/* 刪除/初始化彈窗 */}
+      {deviceToDelete && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+           <div className="bg-[#1e293b] border border-slate-700 rounded-[2.5rem] p-10 max-w-sm w-full animate-in zoom-in shadow-2xl ring-1 ring-white/5">
+              <div className="flex items-center gap-4 mb-6 text-red-500"><AlertTriangle size={32} /><h3 className="text-2xl font-black italic uppercase tracking-tighter">移除設備？</h3></div>
+              <p className="text-sm text-slate-400 mb-10 leading-relaxed font-medium">您確定要將「{deviceToDelete.label}」從當前位置移除嗎？</p>
+              <div className="flex gap-4">
+                 <button onClick={() => setDeviceToDelete(null)} className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs transition-all">取消</button>
+                 <button onClick={() => { setFloorPlans(p => { const next = [...p]; const i = next.findIndex(x => x.siteId === selectedSiteId); if (i > -1) next[i].sensors = next[i].sensors.filter(s => s.id !== deviceToDelete.id); return next; }); setDeviceToDelete(null); }} className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-red-900/20 active:scale-95 transition-all">確認移除</button>
               </div>
-              <div className="p-8 space-y-10 overflow-y-auto max-h-[70vh] custom-scrollbar">
-                 <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><MapIcon size={14} className="text-blue-500" /> 地圖服務提供者</label>
-                    <div className="grid grid-cols-3 gap-4">
-                       <button onClick={() => setMapProvider('opensource')} className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'opensource' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><Database size={24} /><span className="text-xs font-black uppercase tracking-widest text-center">OpenSource Map</span></button>
-                       <button onClick={() => setMapProvider('osm')} className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'osm' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><Globe size={24} /><span className="text-xs font-black uppercase tracking-widest text-center">OpenStreet Map</span></button>
-                       <button onClick={() => setMapProvider('google')} className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'google' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><MapIcon size={24} /><span className="text-xs font-black uppercase tracking-widest text-center">Google Maps</span></button>
+           </div>
+        </div>
+      )}
+
+      {isResetting && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+           <div className="bg-[#1e293b] border border-slate-700 rounded-[2.5rem] p-10 max-w-sm w-full animate-in zoom-in shadow-2xl ring-1 ring-white/5">
+              <div className="flex items-center gap-4 mb-6 text-red-500"><RefreshCw size={32} /><h3 className="text-2xl font-black italic uppercase tracking-tighter">初始化配置？</h3></div>
+              <p className="text-sm text-slate-400 mb-10 leading-relaxed font-medium">這將清空此區域所有的圖資與設備擺放設定，且無法還原。</p>
+              <div className="flex gap-4">
+                 <button onClick={() => setIsResetting(false)} className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs transition-all">取消</button>
+                 <button onClick={() => { setFloorPlans(p => p.filter(x => x.siteId !== selectedSiteId)); setSourceType(null); setIsResetting(false); setIsEditing(false); }} className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-red-900/20 active:scale-95 transition-all">確認清空</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* GIS 完整設定彈窗 - 對齊附件截圖樣式 */}
+      {isMapSettingsOpen && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in">
+           <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl max-w-3xl w-full flex flex-col overflow-hidden ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
+              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40">
+                 <div className="flex items-center gap-5"><div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl"><Globe size={28}/></div><div><h2 className="text-2xl font-black text-white tracking-tighter italic uppercase">地圖服務配置</h2><p className="text-[10px] text-slate-500 font-black mt-1 uppercase tracking-widest">MAP SERVICE PROVIDER & VISUALIZATION SETTINGS</p></div></div>
+                 <button onClick={() => setIsMapSettingsOpen(false)} className="p-2 text-slate-500 hover:text-red-500 transition-colors"><X size={32}/></button>
+              </div>
+              
+              <div className="p-10 space-y-12 overflow-y-auto custom-scrollbar max-h-[70vh]">
+                 {/* 1. 地圖服務提供者 */}
+                 <div className="space-y-6">
+                    <div className="flex items-center gap-3 text-blue-500 font-black text-[11px] uppercase tracking-[0.2em]"><MapIcon size={16}/> 地圖服務提供者</div>
+                    <div className="grid grid-cols-3 gap-5">
+                       {[
+                         {id:'opensource', label:'OPENSOURCE MAP', icon:<Database size={24}/>}, 
+                         {id:'osm', label:'OPENSTREET MAP', icon:<Globe size={24}/>}, 
+                         {id:'google', label:'GOOGLE MAPS', icon:<MapIcon size={24}/>}
+                       ].map(p => (
+                         <button key={p.id} onClick={() => setMapProvider(p.id as MapProvider)} className={`flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 transition-all gap-4 relative ${mapProvider === p.id ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-xl ring-1 ring-blue-500/30' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}>{p.icon}<span className="text-[10px] font-black uppercase tracking-widest">{p.label}</span>{mapProvider === p.id && <div className="absolute top-4 right-4 bg-blue-500 rounded-full p-0.5 text-white shadow-lg"><Check size={10} strokeWidth={4} /></div>}</button>
+                       ))}
                     </div>
                  </div>
+
+                 {/* 2. Google API Key 區塊 (僅在選取 Google 時出現) */}
                  {mapProvider === 'google' && (
-                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-300 bg-blue-600/5 p-6 rounded-3xl border border-blue-500/20">
-                       <div className="flex flex-col gap-6 lg:flex-row">
-                          <div className="flex-1 space-y-3">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Key size={14} className="text-blue-500" /> Google Maps API Key</label>
-                             <input type="password" value={googleApiKey} onChange={e => setGoogleApiKey(e.target.value)} placeholder="輸入您的 Google API 金鑰..." className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-all shadow-inner" />
-                          </div>
-                          <div className="w-full lg:w-64 space-y-3">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Info size={14} className="text-blue-500" /> 金鑰取得方式</label>
-                             <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
-                                <ul className="text-[10px] text-slate-400 space-y-2 leading-relaxed font-bold">
-                                   <li className="flex gap-2"><span className="text-blue-500">1.</span> 前往 GCP 控制台</li>
-                                   <li className="flex gap-2"><span className="text-blue-500">2.</span> 啟用 Maps JavaScript API</li>
-                                   <li className="flex gap-2"><span className="text-blue-500">3.</span> 在憑證頁面建立 API Key</li>
-                                   <li className="flex gap-2 mt-2"><a href="https://console.cloud.google.com/google/maps-apis" target="_blank" className="text-blue-400 hover:underline flex items-center gap-1">開啟控制台 <ExternalLink size={10} /></a></li>
-                                </ul>
-                             </div>
-                          </div>
-                       </div>
+                    <div className="bg-blue-900/10 border border-blue-500/20 rounded-[2rem] p-8 animate-in slide-in-from-top-4 duration-300">
+                        <div className="flex gap-10">
+                            <div className="flex-1 space-y-5">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest"><Navigation size={14}/> GOOGLE MAPS API KEY</div>
+                                <input type="text" placeholder="輸入您的 Google API 金鑰..." value={googleApiKey} onChange={e => setGoogleApiKey(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3.5 px-5 text-sm font-bold text-white focus:border-blue-500 outline-none shadow-inner" />
+                            </div>
+                            <div className="w-64 space-y-4">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 uppercase tracking-widest"><Info size={14}/> 金鑰取得方式</div>
+                                <div className="bg-black/30 rounded-2xl p-5 border border-slate-800 text-[11px] space-y-3 font-bold text-slate-400">
+                                   <div className="flex gap-2"><span>1.</span><span>前往 GCP 控制台</span></div>
+                                   <div className="flex gap-2"><span>2.</span><span>啟用 Maps JavaScript API</span></div>
+                                   <div className="flex gap-2"><span>3.</span><span>在憑證頁面建立 API Key</span></div>
+                                   <a href="https://console.cloud.google.com/" target="_blank" className="block pt-2 text-blue-400 hover:underline flex items-center gap-1.5 uppercase text-[9px] font-black">開啟控制台 <ExternalLink size={10}/></a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                  )}
-                 <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Layers size={14} className="text-blue-500" /> 圖層視覺風格</label>
-                    <div className="grid grid-cols-2 gap-4">
-                       <button onClick={() => setMapLayerStyle('dark')} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${mapLayerStyle === 'dark' ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><div className="w-10 h-10 bg-black border border-slate-800 rounded-xl shadow-inner"></div><div className="text-left"><span className="block text-sm font-black uppercase tracking-widest">地圖 (深色)</span><span className="text-[9px] opacity-60">Dark Visualization</span></div></button>
-                       <button onClick={() => setMapLayerStyle('light')} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${mapLayerStyle === 'light' ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><div className="w-10 h-10 bg-slate-200 border border-white rounded-xl shadow-inner"></div><div className="text-left"><span className="block text-sm font-black uppercase tracking-widest">地圖 (淺色)</span><span className="text-[9px] opacity-60">Standard Light Mode</span></div></button>
+
+                 {/* 3. 圖層視覺風格 */}
+                 <div className="space-y-6">
+                    <div className="flex items-center gap-3 text-blue-500 font-black text-[11px] uppercase tracking-[0.2em]"><Layers size={16}/> 圖層視覺風格</div>
+                    <div className="grid grid-cols-2 gap-5">
+                       <button onClick={() => setMapLayerStyle('dark')} className={`flex items-center gap-6 p-6 rounded-[2rem] border-2 transition-all ${mapLayerStyle === 'dark' ? 'bg-blue-600/10 border-blue-500 shadow-xl' : 'bg-black/20 border-slate-800 text-slate-500'}`}><div className="w-14 h-14 bg-black rounded-2xl border border-slate-800 shadow-inner flex items-center justify-center"><div className="w-6 h-6 bg-slate-900 rounded-lg"></div></div><div className="text-left"><span className="block text-sm font-black text-slate-100 uppercase tracking-tight">地圖 (深色)</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Dark Visualization</span></div></button>
+                       <button onClick={() => setMapLayerStyle('light')} className={`flex items-center gap-6 p-6 rounded-[2rem] border-2 transition-all ${mapLayerStyle === 'light' ? 'bg-blue-600/10 border-blue-500 shadow-xl' : 'bg-black/20 border-slate-800 text-slate-500'}`}><div className="w-14 h-14 bg-slate-200 rounded-2xl border border-white shadow-inner flex items-center justify-center"><div className="w-6 h-6 bg-white rounded-lg"></div></div><div className="text-left"><span className="block text-sm font-black text-slate-100 uppercase tracking-tight">地圖 (淺色)</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Standard Light Mode</span></div></button>
                     </div>
                  </div>
               </div>
-              <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5">
-                 <button onClick={() => setIsMapSettingsOpen(false)} className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest">取消</button>
-                 <button onClick={() => { setIsMapSettingsOpen(false); }} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/40 ring-1 ring-white/10 active:scale-95 transition-all flex items-center gap-3"><CheckCircle2 size={20} /> 儲存配置</button>
-              </div>
-           </div>
-        </div>
-      )}
 
-      {/* Initialization Confirmation */}
-      {isResetting && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-[#1e293b] border border-slate-700 rounded-[2.5rem] shadow-2xl max-w-sm w-full p-10 animate-in zoom-in duration-200">
-              <div className="flex flex-col items-center text-center gap-6">
-                 <div className="w-20 h-20 bg-red-500/10 rounded-[2rem] flex items-center justify-center text-red-500 shadow-inner"><RefreshCw size={40} className="animate-spin" style={{ animationDuration: '4s' }} /></div>
-                 <h3 className="text-2xl font-black text-white tracking-tight italic uppercase">初始化圖資？</h3>
-                 <p className="text-sm text-slate-400 leading-relaxed">這將會「永久清空」當前區域的圖資與座標配置。</p>
-              </div>
-              <div className="flex gap-4 mt-10">
-                 <button onClick={() => setIsResetting(false)} className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold text-sm border border-slate-700">取消</button>
-                 <button onClick={() => { setFloorPlans(prev => prev.filter(p => p.siteId !== selectedSiteId)); setSourceType(null); setIsResetting(false); setIsEditing(false); }} className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-sm shadow-xl shadow-red-900/40 active:scale-95">確認初始化</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Remove Sensor Modal */}
-      {sensorToRemove && (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-[#1e293b] border border-slate-700 rounded-[2rem] shadow-2xl max-sm w-full p-8 animate-in zoom-in duration-200">
-              <div className="flex items-center gap-4 mb-6">
-                 <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500"><AlertTriangle size={28} /></div>
-                 <h3 className="text-xl font-black text-white tracking-tight italic">移除設備標註？</h3>
-              </div>
-              <p className="text-sm text-slate-400 leading-relaxed mb-8">您即將撤回此設備在平面圖上的座標資訊。</p>
-              <div className="flex gap-4">
-                 <button onClick={() => setSensorToRemove(null)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-sm border border-slate-700">返回</button>
-                 <button onClick={() => {
-                    setFloorPlans(prev => {
-                      const idx = prev.findIndex(p => p.siteId === selectedSiteId);
-                      if (idx === -1) return prev;
-                      const next = [...prev];
-                      next[idx] = { ...next[idx], sensors: next[idx].sensors.filter(s => s.id !== sensorToRemove) };
-                      return next;
-                    });
-                    setSensorToRemove(null);
-                 }} className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-black text-sm shadow-xl active:scale-95">確認移除</button>
+              <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5 shrink-0">
+                 <button onClick={() => setIsMapSettingsOpen(false)} className="px-10 py-4 bg-[#1e293b] hover:bg-slate-800 text-slate-400 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-800 transition-all">取消</button>
+                 <button onClick={() => setIsMapSettingsOpen(false)} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl transition-all active:scale-95 ring-1 ring-white/10 flex items-center gap-3"><CheckCircle2 size={20}/> 儲存配置</button>
               </div>
            </div>
         </div>

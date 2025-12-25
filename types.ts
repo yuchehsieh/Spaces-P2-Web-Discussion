@@ -6,6 +6,7 @@ export interface SiteNode {
   deviceType?: 'camera' | 'sensor' | 'door' | 'emergency';
   children?: SiteNode[];
   isOpen?: boolean; // Initial state
+  address?: string; // 據點地址 (用於 GIS 導航)
 }
 
 export interface VLMData {
@@ -39,6 +40,13 @@ export interface MapRegion {
   coords: [number, number][]; // 儲存精確的頂點經緯度陣列，以支援不規則四邊形
 }
 
+export interface MapPin {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface FloorPlanData {
   siteId: string;
   type: 'image' | 'map';
@@ -47,6 +55,7 @@ export interface FloorPlanData {
     center: [number, number];
     zoom: number;
     regions: MapRegion[]; // 支援多個選取框
+    pins?: MapPin[];      // 支援多個據點標註
   };
   sensors: SensorPosition[];
 }
