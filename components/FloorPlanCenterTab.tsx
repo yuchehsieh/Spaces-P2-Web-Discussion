@@ -15,6 +15,8 @@ import {
   Maximize,
   Search,
   Plus,
+  // Added missing Minus icon
+  Minus,
   Pencil,
   Eye,
   AlertTriangle,
@@ -34,7 +36,7 @@ import {
   Layers,
   Key,
   Database,
-  Loader2 // 新增 Spinner 圖示
+  Loader2 
 } from 'lucide-react';
 import { SiteNode, FloorPlanData, MapRegion, SensorPosition } from '../types';
 import { SITE_TREE_DATA, INITIAL_FLOOR_PLANS } from '../constants';
@@ -58,6 +60,16 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedId === node.id;
   const hasFloorPlan = idsWithFloorPlan.has(node.id);
+
+  // 外部強迫開啟邏輯：若子節點被選中，則父節點必須開啟
+  useEffect(() => {
+    if (selectedId && node.children) {
+        const containsSelected = (nodes: SiteNode[]): boolean => nodes.some(n => n.id === selectedId || (n.children && containsSelected(n.children)));
+        if (containsSelected(node.children)) {
+            setIsOpen(true);
+        }
+    }
+  }, [selectedId]);
 
   const shouldShow = useMemo(() => {
     if (!searchTerm) return true;
@@ -113,7 +125,7 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
               node={child} 
               level={level + 1} 
               selectedId={selectedId} 
-              onSelect={onSelect} 
+              onSelect={id => onSelect(id)} 
               searchTerm={searchTerm} 
               idsWithFloorPlan={idsWithFloorPlan}
             />
@@ -129,8 +141,12 @@ const TreeItem: React.FC<TreeItemProps> = ({ node, level, selectedId, onSelect, 
 type MapProvider = 'opensource' | 'osm' | 'google';
 type MapLayerStyle = 'dark' | 'light';
 
-const FloorPlanCenterTab: React.FC = () => {
-  const [selectedSiteId, setSelectedSiteId] = useState<string | null>('zone-hq-office');
+interface FloorPlanCenterTabProps {
+  initialSiteId?: string | null;
+}
+
+const FloorPlanCenterTab: React.FC<FloorPlanCenterTabProps> = ({ initialSiteId }) => {
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(initialSiteId || 'zone-hq-office');
   const [floorPlans, setFloorPlans] = useState<FloorPlanData[]>(INITIAL_FLOOR_PLANS);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -138,20 +154,16 @@ const FloorPlanCenterTab: React.FC = () => {
   const [sensorToRemove, setSensorToRemove] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   
-  // 新增地圖載入狀態控制
   const [isMapLoading, setIsMapLoading] = useState(false);
 
-  // Map Settings States
   const [isMapSettingsOpen, setIsMapSettingsOpen] = useState(false);
   const [mapProvider, setMapProvider] = useState<MapProvider>('opensource');
   const [mapLayerStyle, setMapLayerStyle] = useState<MapLayerStyle>('dark');
   const [googleApiKey, setGoogleApiKey] = useState('');
 
-  // Zoom & Pan for Image source
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-  // Refs for Map
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const viewMapContainerRef = useRef<HTMLDivElement>(null);
@@ -160,8 +172,15 @@ const FloorPlanCenterTab: React.FC = () => {
   const currentTileLayerRef = useRef<any>(null);
   const mapDeviceMarkersRef = useRef<Record<string, any>>({});
   
-  // Track active regions in Edit Mode
   const activeRegionsRef = useRef<any[]>([]);
+
+  // 監聽來自外部的跳轉指令
+  useEffect(() => {
+    if (initialSiteId) {
+        setSelectedSiteId(initialSiteId);
+        setIsEditing(false);
+    }
+  }, [initialSiteId]);
 
   const idsWithFloorPlan = useMemo(() => new Set(floorPlans.map(p => p.siteId)), [floorPlans]);
 
@@ -432,20 +451,16 @@ const FloorPlanCenterTab: React.FC = () => {
     }
   }, [isEditing, sourceType, mapProvider, mapLayerStyle, activeFloorPlan?.sensors.length]);
 
-  // Leaflet initialization (VIEW MODE) - 加入 Spinner 與渲染穩定化邏輯
+  // Leaflet initialization (VIEW MODE)
   useEffect(() => {
-    // 1. 先徹底清理舊的地圖
     if (viewMapRef.current) {
       viewMapRef.current.remove();
       viewMapRef.current = null;
     }
 
-    // 2. 如果目前是「地圖模式」且不是正在編輯
     if (!isEditing && activeFloorPlan?.type === 'map') {
-      // 3. 開啟 Spinner
       setIsMapLoading(true);
 
-      // 4. 使用延遲機制確保 DOM 已穩定掛載
       const initTimer = setTimeout(() => {
         if (!viewMapContainerRef.current) return;
         
@@ -474,21 +489,15 @@ const FloorPlanCenterTab: React.FC = () => {
           });
 
           viewMapRef.current = map;
-          
-          // 強制校正大小
           map.invalidateSize();
-          
-          // 關閉 Spinner
           setIsMapLoading(false);
-          
-          // 二次校正（防止某些極端 CSS 動畫干擾）
           setTimeout(() => map.invalidateSize(), 100);
 
         } catch (err) {
           console.error("Map initialization failed", err);
           setIsMapLoading(false);
         }
-      }, 500); // 延遲 500ms 給予 Spinner 展現與佈局穩定時間
+      }, 500); 
 
       return () => clearTimeout(initTimer);
     }
@@ -501,7 +510,6 @@ const FloorPlanCenterTab: React.FC = () => {
     };
   }, [isEditing, selectedSiteId, activeFloorPlan?.type, mapProvider, mapLayerStyle]);
 
-  // 新增功能：快速定位藍色虛線區域
   const handleLocateRegions = () => {
     if (!viewMapRef.current || !activeFloorPlan?.mapConfig?.regions?.length) return;
     
@@ -527,7 +535,6 @@ const FloorPlanCenterTab: React.FC = () => {
     setIsEditing(false);
     setScale(1);
     setOffset({ x: 0, y: 0 });
-    // 切換站點時，如果有地圖資料，先啟動 Loading 狀態
     const target = floorPlans.find(p => p.siteId === id);
     if (target?.type === 'map') {
       setIsMapLoading(true);
@@ -567,17 +574,15 @@ const FloorPlanCenterTab: React.FC = () => {
 
     let x, y;
     if (sourceType === 'map' && mapRef.current) {
-        // Map mode uses LatLng
         const rect = mapContainerRef.current!.getBoundingClientRect();
         const point = L.point(e.clientX - rect.left, e.clientY - rect.top);
         const latlng = mapRef.current.containerPointToLatLng(point);
         x = latlng.lng;
         y = latlng.lat;
     } else if (containerRef.current) {
-        // Image mode uses percentage
         const rect = containerRef.current.getBoundingClientRect();
         x = ((e.clientX - rect.left) / rect.width) * 100;
-        y = ((e.clientY - rect.top) / rect.height) * 100;
+        y = ((e.clientX - rect.top) / rect.height) * 100;
         x = Math.max(0, Math.min(100, x));
         y = Math.max(0, Math.min(100, y));
     } else return;
@@ -750,14 +755,12 @@ const FloorPlanCenterTab: React.FC = () => {
                 {isEditing && sourceType === 'map' && (
                   <div className="w-full h-full relative">
                     <div ref={mapContainerRef} className="w-full h-full z-10" />
-                    {/* Map Tools */}
                     <div className="absolute bottom-8 right-8 z-[500] flex flex-col gap-3">
                         <div className="flex flex-col bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
                            <button onClick={() => createMapRegion()} title="新增藍色選取框" className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 transition-all group">
                               <Square size={20} className="group-active:scale-90 transition-transform" />
                            </button>
                         </div>
-                        
                         <div className="flex flex-col bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
                            <button 
                              onClick={() => setIsMapSettingsOpen(true)}
@@ -767,9 +770,9 @@ const FloorPlanCenterTab: React.FC = () => {
                               <Settings size={20} className="group-hover:rotate-45 transition-transform" />
                            </button>
                         </div>
-
                         <div className="flex flex-col bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
                            <button onClick={() => mapRef.current?.zoomIn()} className="p-3.5 text-slate-300 hover:text-white border-b border-slate-700 transition-all"><Plus size={20} /></button>
+                           {/* Fixed Minus icon usage */}
                            <button onClick={() => mapRef.current?.zoomOut()} className="p-3.5 text-slate-300 hover:text-white transition-all"><Minus size={20} /></button>
                         </div>
                     </div>
@@ -779,7 +782,6 @@ const FloorPlanCenterTab: React.FC = () => {
                 {/* 4. MAP VIEW MODE (NON-EDITING) */}
                 {!isEditing && sourceType === 'map' && activeFloorPlan?.mapConfig && (
                    <div className="w-full h-full relative border-4 border-blue-500 shadow-[inset_0_0_100px_rgba(59,130,246,0.3)]">
-                      {/* 加載 Spinner 層 */}
                       {isMapLoading && (
                         <div className="absolute inset-0 z-[100] bg-[#0b1121] flex flex-col items-center justify-center gap-6">
                            <div className="relative w-24 h-24">
@@ -788,7 +790,6 @@ const FloorPlanCenterTab: React.FC = () => {
                               <div className="absolute inset-0 flex items-center justify-center text-blue-500">
                                  <Loader2 size={32} className="animate-pulse" />
                               </div>
-                              {/* 掃描線動畫效果 */}
                               <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
                                  <div className="w-full h-1 bg-blue-400/50 blur-sm absolute animate-[scan-line_2s_linear_infinite]"></div>
                               </div>
@@ -801,23 +802,17 @@ const FloorPlanCenterTab: React.FC = () => {
                       )}
                       
                       <div ref={viewMapContainerRef} className="w-full h-full bg-slate-900" />
-                      
                       <div className="absolute bottom-4 left-4 bg-black/70 px-4 py-2 rounded-xl border border-white/10 flex items-center gap-3 z-50 shadow-2xl pointer-events-none">
                          <Globe size={14} className="text-blue-400 animate-pulse" />
                          <span className="text-[11px] font-mono font-black text-white tracking-widest uppercase">GIS Active Layer: {activeNodeLabel}</span>
                       </div>
-
-                      {/* GIS View Mode Controls (New) */}
                       <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-[500]">
                          <div className="flex flex-col bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
                             <button onClick={() => viewMapRef.current?.zoomIn()} className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 border-b border-slate-800 transition-all"><Plus size={20}/></button>
+                            {/* Fixed Minus icon usage */}
                             <button onClick={() => viewMapRef.current?.zoomOut()} className="p-3.5 text-slate-300 hover:text-white hover:bg-blue-600 transition-all"><Minus size={20}/></button>
                          </div>
-                         <button 
-                            onClick={handleLocateRegions}
-                            title="快速定位藍色虛線框"
-                            className="p-3.5 bg-blue-600/90 backdrop-blur-md hover:bg-blue-500 text-white rounded-2xl shadow-xl shadow-blue-900/40 border border-blue-400 transition-all active:scale-95 group"
-                         >
+                         <button onClick={handleLocateRegions} title="快速定位藍色虛線框" className="p-3.5 bg-blue-600/90 backdrop-blur-md hover:bg-blue-500 text-white rounded-2xl shadow-xl shadow-blue-900/40 border border-blue-400 transition-all active:scale-95 group">
                             <Maximize size={20} className="group-hover:scale-110 transition-transform" />
                          </button>
                       </div>
@@ -853,135 +848,57 @@ const FloorPlanCenterTab: React.FC = () => {
       {isMapSettingsOpen && (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-white/5">
-              
               <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40">
                  <div className="flex items-center gap-5">
-                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
-                       <Globe size={28} />
-                    </div>
+                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40"><Globe size={28} /></div>
                     <div>
                        <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">地圖服務配置</h2>
                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Map Service Provider & Visualization Settings</p>
                     </div>
                  </div>
-                 <button onClick={() => setIsMapSettingsOpen(false)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all">
-                    <X size={28} />
-                 </button>
+                 <button onClick={() => setIsMapSettingsOpen(false)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all"><X size={28} /></button>
               </div>
-
               <div className="p-8 space-y-10 overflow-y-auto max-h-[70vh] custom-scrollbar">
-                 
-                 {/* 1. Provider Selection */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                       <MapIcon size={14} className="text-blue-500" /> 地圖服務提供者
-                    </label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><MapIcon size={14} className="text-blue-500" /> 地圖服務提供者</label>
                     <div className="grid grid-cols-3 gap-4">
-                       <button 
-                         onClick={() => setMapProvider('opensource')}
-                         className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'opensource' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                       >
-                          <Database size={24} />
-                          <span className="text-xs font-black uppercase tracking-widest text-center">OpenSource Map</span>
-                       </button>
-                       <button 
-                         onClick={() => setMapProvider('osm')}
-                         className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'osm' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                       >
-                          <Globe size={24} />
-                          <span className="text-xs font-black uppercase tracking-widest text-center">OpenStreet Map</span>
-                       </button>
-                       <button 
-                         onClick={() => setMapProvider('google')}
-                         className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'google' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                       >
-                          <MapIcon size={24} />
-                          <span className="text-xs font-black uppercase tracking-widest text-center">Google Maps</span>
-                       </button>
+                       <button onClick={() => setMapProvider('opensource')} className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'opensource' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><Database size={24} /><span className="text-xs font-black uppercase tracking-widest text-center">OpenSource Map</span></button>
+                       <button onClick={() => setMapProvider('osm')} className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'osm' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><Globe size={24} /><span className="text-xs font-black uppercase tracking-widest text-center">OpenStreet Map</span></button>
+                       <button onClick={() => setMapProvider('google')} className={`flex flex-col items-center justify-center p-6 rounded-3xl border transition-all gap-3 ${mapProvider === 'google' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><MapIcon size={24} /><span className="text-xs font-black uppercase tracking-widest text-center">Google Maps</span></button>
                     </div>
                  </div>
-
-                 {/* 2. Google Maps API Key Section */}
                  {mapProvider === 'google' && (
                     <div className="space-y-6 animate-in slide-in-from-top-4 duration-300 bg-blue-600/5 p-6 rounded-3xl border border-blue-500/20">
                        <div className="flex flex-col gap-6 lg:flex-row">
                           <div className="flex-1 space-y-3">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                <Key size={14} className="text-blue-500" /> Google Maps API Key
-                             </label>
-                             <input 
-                                type="password" 
-                                value={googleApiKey}
-                                onChange={e => setGoogleApiKey(e.target.value)}
-                                placeholder="輸入您的 Google API 金鑰..." 
-                                className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-all shadow-inner"
-                             />
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Key size={14} className="text-blue-500" /> Google Maps API Key</label>
+                             <input type="password" value={googleApiKey} onChange={e => setGoogleApiKey(e.target.value)} placeholder="輸入您的 Google API 金鑰..." className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-sm font-bold text-white focus:outline-none focus:border-blue-500 transition-all shadow-inner" />
                           </div>
                           <div className="w-full lg:w-64 space-y-3">
-                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                <Info size={14} className="text-blue-500" /> 金鑰取得方式
-                             </label>
+                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Info size={14} className="text-blue-500" /> 金鑰取得方式</label>
                              <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
                                 <ul className="text-[10px] text-slate-400 space-y-2 leading-relaxed font-bold">
                                    <li className="flex gap-2"><span className="text-blue-500">1.</span> 前往 GCP 控制台</li>
                                    <li className="flex gap-2"><span className="text-blue-500">2.</span> 啟用 Maps JavaScript API</li>
                                    <li className="flex gap-2"><span className="text-blue-500">3.</span> 在憑證頁面建立 API Key</li>
-                                   <li className="flex gap-2 mt-2">
-                                      <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" className="text-blue-400 hover:underline flex items-center gap-1">開啟控制台 <ExternalLink size={10} /></a>
-                                   </li>
+                                   <li className="flex gap-2 mt-2"><a href="https://console.cloud.google.com/google/maps-apis" target="_blank" className="text-blue-400 hover:underline flex items-center gap-1">開啟控制台 <ExternalLink size={10} /></a></li>
                                 </ul>
                              </div>
                           </div>
                        </div>
                     </div>
                  )}
-
-                 {/* 3. Layer Style Selection */}
                  <div className="space-y-4">
-                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                       <Layers size={14} className="text-blue-500" /> 圖層視覺風格
-                    </label>
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Layers size={14} className="text-blue-500" /> 圖層視覺風格</label>
                     <div className="grid grid-cols-2 gap-4">
-                       <button 
-                         onClick={() => setMapLayerStyle('dark')}
-                         className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${mapLayerStyle === 'dark' ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                       >
-                          <div className="w-10 h-10 bg-black border border-slate-800 rounded-xl shadow-inner"></div>
-                          <div className="text-left">
-                             <span className="block text-sm font-black uppercase tracking-widest">地圖 (深色)</span>
-                             <span className="text-[9px] opacity-60">Dark Visualization</span>
-                          </div>
-                       </button>
-                       <button 
-                         onClick={() => setMapLayerStyle('light')}
-                         className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${mapLayerStyle === 'light' ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}
-                       >
-                          <div className="w-10 h-10 bg-slate-200 border border-white rounded-xl shadow-inner"></div>
-                          <div className="text-left">
-                             <span className="block text-sm font-black uppercase tracking-widest">地圖 (淺色)</span>
-                             <span className="text-[9px] opacity-60">Standard Light Mode</span>
-                          </div>
-                       </button>
+                       <button onClick={() => setMapLayerStyle('dark')} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${mapLayerStyle === 'dark' ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><div className="w-10 h-10 bg-black border border-slate-800 rounded-xl shadow-inner"></div><div className="text-left"><span className="block text-sm font-black uppercase tracking-widest">地圖 (深色)</span><span className="text-[9px] opacity-60">Dark Visualization</span></div></button>
+                       <button onClick={() => setMapLayerStyle('light')} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${mapLayerStyle === 'light' ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-black/20 border-slate-800 text-slate-500 hover:border-slate-700'}`}><div className="w-10 h-10 bg-slate-200 border border-white rounded-xl shadow-inner"></div><div className="text-left"><span className="block text-sm font-black uppercase tracking-widest">地圖 (淺色)</span><span className="text-[9px] opacity-60">Standard Light Mode</span></div></button>
                     </div>
                  </div>
-
               </div>
-
               <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5">
-                 <button 
-                   onClick={() => setIsMapSettingsOpen(false)} 
-                   className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest"
-                 >
-                    取消
-                 </button>
-                 <button 
-                   onClick={() => {
-                     setIsMapSettingsOpen(false);
-                   }} 
-                   className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/40 ring-1 ring-white/10 active:scale-95 transition-all flex items-center gap-3"
-                 >
-                    <CheckCircle2 size={20} /> 儲存配置
-                 </button>
+                 <button onClick={() => setIsMapSettingsOpen(false)} className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl transition-all font-black text-sm border border-slate-700 uppercase tracking-widest">取消</button>
+                 <button onClick={() => { setIsMapSettingsOpen(false); }} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-900/40 ring-1 ring-white/10 active:scale-95 transition-all flex items-center gap-3"><CheckCircle2 size={20} /> 儲存配置</button>
               </div>
            </div>
         </div>
@@ -1032,10 +949,5 @@ const FloorPlanCenterTab: React.FC = () => {
     </div>
   );
 };
-
-// Custom Minus Icon
-const Minus = ({ size, className, strokeWidth = 2 }: { size: number, className?: string, strokeWidth?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-);
 
 export default FloorPlanCenterTab;

@@ -1,4 +1,3 @@
-
 import { SiteNode, SecurityEvent, FloorPlanData } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
@@ -53,7 +52,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 id: 'zone-zs-warehouse',
                 label: '倉庫 (分區1)',
                 type: 'zone',
-                isOpen: true,
+                isOpen: false,
                 children: [
                   { id: 'w-door-1', label: '門磁', type: 'device', deviceType: 'door' },
                   { id: 'w-ipc-1', label: 'IPC', type: 'device', deviceType: 'camera' },
@@ -63,7 +62,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 id: 'zone-zs-manager',
                 label: '部長室 (分區2)',
                 type: 'zone',
-                isOpen: true,
+                isOpen: false,
                 children: [
                   { id: 'm-door-1', label: '門磁', type: 'device', deviceType: 'door' },
                 ],
@@ -96,15 +95,11 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 id: 'zone-bt-office',
                 label: '大辦公區 (分區1)',
                 type: 'zone',
-                isOpen: true,
+                isOpen: false,
                 children: [
                   { id: 'bt-pir', label: 'PIR', type: 'device', deviceType: 'sensor' },
-                  { id: 'bt-btn-1', label: '緊急按鈕', type: 'device', deviceType: 'emergency' },
                   { id: 'bt-webcam', label: 'Web Cam', type: 'device', deviceType: 'camera' },
-                  { id: 'bt-ipc-1', label: 'IPC', type: 'device', deviceType: 'camera' },
-                  { id: 'bt-ipc-2', label: 'IPC', type: 'device', deviceType: 'camera' },
                   { id: 'bt-door', label: '門磁', type: 'device', deviceType: 'door' },
-                  { id: 'bt-btn-2', label: '緊急按鈕', type: 'device', deviceType: 'emergency' },
                 ],
               },
             ],
@@ -127,22 +122,19 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 id: 'zone-dj-warehouse',
                 label: '倉庫 (分區1)',
                 type: 'zone',
-                isOpen: true,
+                isOpen: false,
                 children: [
                   { id: 'dj-door-1', label: '門磁', type: 'device', deviceType: 'door' },
                   { id: 'dj-ipc-1', label: 'IPC', type: 'device', deviceType: 'camera' },
-                  { id: 'dj-ipc-2', label: 'IPC', type: 'device', deviceType: 'camera' },
-                  { id: 'dj-pir-1', label: 'PIR', type: 'device', deviceType: 'sensor' },
                 ],
               },
               {
                 id: 'zone-dj-manager',
                 label: '部長室 (分區2)',
                 type: 'zone',
-                isOpen: true,
+                isOpen: false,
                 children: [
                   { id: 'dj-m-door-1', label: '門磁', type: 'device', deviceType: 'door' },
-                  { id: 'dj-m-door-2', label: '門磁', type: 'device', deviceType: 'door' },
                 ],
               },
             ],
@@ -191,14 +183,34 @@ export const MOCK_EVENTS: SecurityEvent[] = [
 
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
   {
+    siteId: 'site-hq',
+    type: 'map',
+    mapConfig: {
+      center: [25.0629, 121.5796],
+      zoom: 18,
+      regions: [
+        {
+          id: 'hq-neihu-block',
+          coords: [
+            [25.06325, 121.57885],
+            [25.06345, 121.57930],
+            [25.06295, 121.57965],
+            [25.06275, 121.57915]
+          ]
+        }
+      ]
+    },
+    sensors: []
+  },
+  {
     siteId: 'zone-hq-office',
     type: 'image',
     imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
     sensors: [
-      { id: 'c-webcam', x: 23.5, y: 41.5 },  // 左側隔間攝影機
-      { id: 'c-ipc-1', x: 44.8, y: 38.2 },   // 上方走廊攝影機
-      { id: 'c-pir', x: 33.6, y: 50.8 },     // 中央偵測器
-      { id: 'o-door', x: 18.5, y: 71.2 },    // 左下角臥室門磁
+      { id: 'c-webcam', x: 23.5, y: 41.5 },  
+      { id: 'c-ipc-1', x: 44.8, y: 38.2 },   
+      { id: 'c-pir', x: 33.6, y: 50.8 },     
+      { id: 'o-door', x: 18.5, y: 71.2 },    
     ]
   }
 ];
@@ -224,47 +236,8 @@ export const MOCK_AUTHORIZATIONS = [
       enabled: true,
       permanent: true,
       allowResharing: true,
-      security: {
-        view: true,
-        settings: true,
-        schedule: true,
-        cardEdit: true,
-        contactEdit: true
-      },
-      camera: {
-        view: true,
-        settings: true,
-        ptz: true,
-        playback: true
-      },
-      events: true
-    }
-  },
-  {
-    id: 'auth-2',
-    granter: 'John Chen',
-    email: 'john.chen@sks.com.tw',
-    type: 'Corporate',
-    validity: '2026-12-31',
-    grantDate: '2025-05-20',
-    units: ['新光保全-中山處 (Site)'],
-    permissions: {
-      enabled: true,
-      permanent: false,
-      allowResharing: false,
-      security: {
-        view: true,
-        settings: false,
-        schedule: true,
-        cardEdit: false,
-        contactEdit: false
-      },
-      camera: {
-        view: true,
-        settings: false,
-        ptz: false,
-        playback: true
-      },
+      security: { view: true, settings: true, schedule: true, cardEdit: true, contactEdit: true },
+      camera: { view: true, settings: true, ptz: true, playback: true },
       events: true
     }
   }

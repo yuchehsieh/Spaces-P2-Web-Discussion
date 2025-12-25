@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ChevronLeft, Upload, Video, Cpu, DoorOpen, Bell, CheckCircle, ZoomIn, ZoomOut, Maximize, MousePointer2 } from 'lucide-react';
+import { Video, Cpu, DoorOpen, Bell, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { SiteNode, FloorPlanData, SecurityEvent } from '../types';
 
 interface FloorPlanViewProps {
@@ -78,24 +78,7 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
   }, [activeEvent, floorPlan.sensors]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#050914] animate-in fade-in slide-in-from-right-4 duration-300">
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#1e293b] z-30">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors bg-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-700">
-              <ChevronLeft size={16} /> 返回地圖
-            </button>
-            <div className="h-6 w-px bg-slate-700"></div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2 italic">
-               {site.label} - 平面圖檢視模式
-            </h2>
-          </div>
-          <div className="flex items-center gap-3">
-             <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <MousePointer2 size={12}/> 操作面板連動中
-             </div>
-          </div>
-        </div>
-
+    <div className="flex flex-col h-full w-full bg-[#050914] animate-in fade-in duration-500">
         <div className="flex-1 flex overflow-hidden relative">
           <div 
             ref={viewportRef}
@@ -107,7 +90,7 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
                 className="relative shadow-2xl transition-transform duration-75 ease-out inline-block"
                 style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: 'center center' }}
               >
-                <img src={floorPlan.imageUrl} alt="Floor Plan" className="max-w-[85vw] max-h-[80vh] block rounded-lg pointer-events-none border border-slate-700 bg-slate-900/50" />
+                <img src={floorPlan.imageUrl} alt="Floor Plan" className="max-w-[90vw] max-h-[90vh] block rounded-lg pointer-events-none border border-slate-700 bg-slate-900/50" />
                 
                 <div ref={containerRef} className="absolute inset-0 z-20 pointer-events-none">
                   {linkPath && (
@@ -154,12 +137,12 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({ site, onBack, initialData
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-4 text-slate-500 italic">
-                <p>請至平面圖中心進行配置</p>
+                <p>此分區尚未配置影像圖資</p>
               </div>
             )}
 
             {floorPlan.imageUrl && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 p-2 rounded-xl flex items-center gap-2 shadow-2xl z-40">
+              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 p-2 rounded-xl flex items-center gap-2 shadow-2xl z-40">
                 <button onClick={handleZoomOut} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"><ZoomOut size={18}/></button>
                 <div className="w-12 text-center text-xs font-mono font-bold text-blue-400">{(scale * 100).toFixed(0)}%</div>
                 <button onClick={handleZoomIn} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"><ZoomIn size={18}/></button>
