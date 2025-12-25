@@ -136,6 +136,7 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
   const [mapLayerStyle, setMapLayerStyle] = useState<MapLayerStyle>('dark');
   const [googleApiKey, setGoogleApiKey] = useState('');
   const [addressSearch, setAddressSearch] = useState('');
+  const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
   
   // 核心交互狀態
   const [deviceToDelete, setDeviceToDelete] = useState<{id: string, label: string} | null>(null);
@@ -169,6 +170,68 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
   const selectedNode = useMemo(() => selectedSiteId ? findNodeById(SITE_TREE_DATA, selectedSiteId) : null, [selectedSiteId]);
   const activeFloorPlan = useMemo(() => floorPlans.find(p => p.siteId === selectedSiteId), [floorPlans, selectedSiteId]);
 
+  // 地址建議邏輯
+  const addressSuggestions = useMemo(() => {
+    if (!selectedSiteId) return [];
+    const node = findNodeById(SITE_TREE_DATA, selectedSiteId);
+    if (!node) return [];
+
+    const suggestions: { label: string; address: string }[] = [];
+
+    const findSites = (n: SiteNode) => {
+        if (n.type === 'site' && n.address) {
+            suggestions.push({ label: n.label, address: n.address });
+        }
+        n.children?.forEach(findSites);
+    };
+
+    if (node.type === 'group') {
+        // 如果是 Site Group，列出其下所有 Site
+        node.children?.forEach(findSites);
+    } else {
+        // 如果是 Site 層級或以下，尋找其所屬的祖先 Site
+        const getSiteAncestor = (nodes: SiteNode[], targetId: string, currentSite: SiteNode | null): SiteNode | null => {
+            for (const n of nodes) {
+                const nextSite = n.type === 'site' ? n : currentSite;
+                if (n.id === targetId) return nextSite;
+                if (n.children) {
+                    const res = getSiteAncestor(n.children, targetId, nextSite);
+                    if (res) return res;
+                }
+            }
+            return null;
+        };
+        const siteNode = getSiteAncestor(SITE_TREE_DATA, selectedSiteId, null);
+        if (siteNode && siteNode.address) {
+            suggestions.push({ label: siteNode.label, address: siteNode.address });
+        }
+    }
+    return suggestions;
+  }, [selectedSiteId]);
+
+  // 地址搜尋導航邏輯
+  const performAddressSearch = async (query: string) => {
+    if (!query || !mapRef.current) return;
+    setIsMapLoading(true);
+    setShowAddressSuggestions(false);
+    
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            const { lat, lon } = data[0];
+            mapRef.current.flyTo([parseFloat(lat), parseFloat(lon)], 18, { animate: true, duration: 1.5 });
+        } else {
+            alert("找不到該地址位置");
+        }
+    } catch (error) {
+        console.error("Geocoding failed:", error);
+    } finally {
+        setIsMapLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeFloorPlan) {
       setSourceType(activeFloorPlan.type);
@@ -179,6 +242,11 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
       setIsMapLoading(false);
     }
   }, [selectedSiteId, activeFloorPlan, isEditing]);
+
+  // 每次重新 loading (切換站點或切換編輯模式) 時，清空搜尋輸入框
+  useEffect(() => {
+    setAddressSearch('');
+  }, [selectedSiteId, isEditing]);
 
   const allDevicesInContext = useMemo(() => {
     if (!selectedSiteId) return [];
@@ -405,6 +473,28 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
           return next;
         });
       }
+      else if (toolType === 'map-region') {
+        const newRegionId = `region-${Date.now()}`;
+        // 以拖放位置為中心建立一個預設大小的方框 (約 50m)
+        const offset = 0.0004;
+        const newCoords: [number, number][] = [
+            [latlng.lat + offset, latlng.lng - offset],
+            [latlng.lat + offset, latlng.lng + offset],
+            [latlng.lat - offset, latlng.lng + offset],
+            [latlng.lat - offset, latlng.lng - offset]
+        ];
+        const newRegion = { id: newRegionId, coords: newCoords };
+        createMapRegion(mapRef.current, newRegion);
+        
+        setFloorPlans(prev => {
+          const next = [...prev];
+          const idx = next.findIndex(p => p.siteId === selectedSiteId);
+          const updatedConfig = { ...mapConfig, regions: [...savedRegions, newRegion] };
+          if (idx === -1) next.push({ siteId: selectedSiteId, type: 'map', mapConfig: updatedConfig, sensors: [] });
+          else next[idx] = { ...next[idx], mapConfig: updatedConfig, type: 'map' };
+          return next;
+        });
+      }
       else if (sensorId) {
         setFloorPlans(prev => { 
           const next = [...prev]; 
@@ -536,10 +626,58 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
                   <div className="w-full h-full relative">
                     {isEditing && (
                       <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[500] w-full max-w-xl px-4 animate-in slide-in-from-top-4">
-                        <div className="relative bg-[#1e293b]/90 backdrop-blur-xl border border-slate-700 rounded-2xl flex items-center p-1.5 shadow-2xl">
-                             <div className="p-2.5 text-blue-400"><Navigation size={20} className="animate-pulse" /></div>
-                             <input type="text" placeholder="搜尋地址或快速定位..." value={addressSearch} onChange={e => setAddressSearch(e.target.value)} className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-white px-2 placeholder:text-slate-600" />
-                             <button className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg active:scale-95 transition-all"><Search size={18} /></button>
+                        <div className="relative bg-[#1e293b]/90 backdrop-blur-xl border border-slate-700 rounded-2xl flex flex-col shadow-2xl overflow-visible">
+                             <div className="flex items-center p-1.5">
+                                 <div className="p-2.5 text-blue-400"><Navigation size={20} className="animate-pulse" /></div>
+                                 <input 
+                                   type="text" 
+                                   placeholder="搜尋地址或快速定位..." 
+                                   value={addressSearch} 
+                                   onChange={e => setAddressSearch(e.target.value)} 
+                                   onFocus={() => setShowAddressSuggestions(true)}
+                                   onBlur={() => setTimeout(() => setShowAddressSuggestions(false), 200)}
+                                   onKeyDown={e => e.key === 'Enter' && performAddressSearch(addressSearch)}
+                                   className="flex-1 bg-transparent border-none outline-none text-sm font-bold text-white px-2 placeholder:text-slate-600" 
+                                 />
+                                 <button 
+                                   onClick={() => performAddressSearch(addressSearch)}
+                                   className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg active:scale-95 transition-all"
+                                 >
+                                   <Search size={18} />
+                                 </button>
+                             </div>
+
+                             {/* 地址建議下拉清單 (類似搜尋紀錄) */}
+                             {showAddressSuggestions && addressSuggestions.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-[#1e293b] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-[600] animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="p-3 border-b border-slate-800 bg-black/20">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><History size={10}/> 快速地址選取</span>
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                        {addressSuggestions.map((s, idx) => (
+                                            <button 
+                                                key={idx}
+                                                onClick={() => {
+                                                    setAddressSearch(s.address);
+                                                    performAddressSearch(s.address);
+                                                }}
+                                                className="w-full text-left p-4 hover:bg-blue-600/10 border-b border-slate-800/50 last:border-none transition-colors group flex items-start gap-4"
+                                            >
+                                                <div className="p-2 bg-slate-800 rounded-lg text-slate-400 group-hover:text-blue-400 group-hover:bg-blue-600/10 transition-all">
+                                                    <MapPin size={16} />
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors truncate">{s.label}</span>
+                                                    <span className="text-[10px] text-slate-500 font-medium truncate">{s.address}</span>
+                                                </div>
+                                                <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <ExternalLink size={12} className="text-blue-500" />
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                             )}
                         </div>
                       </div>
                     )}
@@ -548,7 +686,7 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
                        {isEditing && (
                          <>
                            <button draggable onDragStart={e => e.dataTransfer.setData('toolType', 'map-pin')} onClick={() => createMapPin(mapRef.current)} className="p-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl shadow-xl transition-all active:scale-90 cursor-grab active:cursor-grabbing"><MapPinIcon size={24} /></button>
-                           <button onClick={() => createMapRegion(mapRef.current)} className="p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl transition-all active:scale-90"><Square size={24} /></button>
+                           <button draggable onDragStart={e => e.dataTransfer.setData('toolType', 'map-region')} onClick={() => createMapRegion(mapRef.current)} className="p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl transition-all active:scale-90 cursor-grab active:cursor-grabbing"><Square size={24} /></button>
                            <button onClick={() => setIsMapSettingsOpen(true)} className="p-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl shadow-xl transition-all"><Settings size={24} /></button>
                          </>
                        )}
@@ -700,8 +838,20 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
            </div>
         </div>
       )}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };
+
+const History = ({ size, className }: { size: number, className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+    <path d="M3 3v5h5"></path>
+    <path d="M12 7v5l4 2"></path>
+  </svg>
+);
 
 export default FloorPlanCenterTab;
