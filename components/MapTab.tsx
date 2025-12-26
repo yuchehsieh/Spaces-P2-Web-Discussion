@@ -175,18 +175,55 @@ const MapTab: React.FC<MapTabProps> = ({
           
           L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
           
+          // 渲染區域範圍 (Polygon)
           config.regions?.forEach(region => {
-            L.polygon(region.coords, { color: '#3b82f6', weight: 3, fillColor: '#3b82f6', fillOpacity: 0.15, dashArray: '8, 8' }).addTo(map);
+            const node = findNodeById(SITE_TREE_DATA, region.id);
+            const polygon = L.polygon(region.coords, { 
+              color: '#3b82f6', 
+              weight: 3, 
+              fillColor: '#3b82f6', 
+              fillOpacity: 0.15,
+            }).addTo(map);
+
+            // 顯示區域名稱標籤
+            if (node) {
+              polygon.bindTooltip(node.label, { 
+                permanent: true, 
+                direction: 'center', 
+                className: 'map-label-tooltip-solid' 
+              });
+              
+              // 點擊區域導航
+              polygon.on('click', () => {
+                if (onAutoSelectNode) onAutoSelectNode(region.id);
+              });
+              polygon.getElement()?.style.setProperty('cursor', 'pointer');
+            }
           });
 
-          // 據點標註渲染
+          // 據點標註渲染 (Pins)
           config.pins?.forEach(pin => {
               const icon = L.divIcon({ 
                 className: 'site-view-pin', 
                 html: `<div style="width:32px;height:32px;background:#ef4444;border:2px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;color:white;"><div style="transform:rotate(45deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div></div>`,
                 iconSize: [32, 32], iconAnchor: [16, 32]
               });
-              L.marker([pin.lat, pin.lng], { icon }).addTo(map).bindPopup(`<b style="color:white;">${pin.label}</b>`, { closeButton: false });
+              
+              const marker = L.marker([pin.lat, pin.lng], { icon }).addTo(map);
+              
+              // 顯示標題標籤
+              marker.bindTooltip(pin.label, { 
+                permanent: true, 
+                direction: 'bottom', 
+                className: 'map-label-tooltip-pin',
+                offset: [0, 5]
+              });
+
+              // 點擊標籤導航
+              marker.on('click', () => {
+                if (onAutoSelectNode) onAutoSelectNode(pin.id);
+              });
+              marker.getElement()?.style.setProperty('cursor', 'pointer');
           });
 
           // 設備標記
@@ -211,12 +248,18 @@ const MapTab: React.FC<MapTabProps> = ({
 
       return () => clearTimeout(initTimer);
     }
-  }, [selectedSite, activePlanData]);
+  }, [selectedSite, activePlanData, onAutoSelectNode]);
 
+  // 更新：預設功能切換邏輯 (Toggle Logic)
   const handleSetDefault = () => {
     if (selectedSite) {
-      onSetDefaultView(selectedSite.id);
-      alert(`已將「${selectedSite.label}」設為預設進入點`);
+      if (defaultViewId === selectedSite.id) {
+          onSetDefaultView(null);
+          alert(`已取消「${selectedSite.label}」的預設狀態`);
+      } else {
+          onSetDefaultView(selectedSite.id);
+          alert(`已將「${selectedSite.label}」設為預設進入點`);
+      }
     }
   };
 
@@ -242,7 +285,32 @@ const MapTab: React.FC<MapTabProps> = ({
 
   return (
     <div className="flex h-full w-full relative overflow-hidden bg-black">
-        <style>{`@keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }`}</style>
+        <style>{`
+          @keyframes scan-line { 0% { top: 0%; } 100% { top: 100%; } }
+          
+          .map-label-tooltip-solid {
+            background: rgba(37, 99, 235, 0.9);
+            border: 1px solid white;
+            border-radius: 4px;
+            color: white;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 2px 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            pointer-events: none;
+          }
+          .map-label-tooltip-pin {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            border-radius: 6px;
+            color: white;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 2px 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            white-space: nowrap;
+          }
+        `}</style>
         <div className="absolute top-6 right-6 z-[500] flex items-center gap-3">
            <div className="px-4 py-2 bg-[#1e293b]/80 backdrop-blur-md border border-slate-700 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl">
               <MousePointer2 size={12}/> 操作連動中

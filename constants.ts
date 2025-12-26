@@ -187,6 +187,34 @@ export const MOCK_EVENTS: SecurityEvent[] = [
 
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
   {
+    siteId: 'taipei-group',
+    type: 'map',
+    mapConfig: {
+      center: [25.055, 121.55],
+      zoom: 13,
+      regions: [
+        {
+          id: 'site-zhongshan',
+          coords: [
+            [25.053, 121.53],
+            [25.058, 121.53],
+            [25.058, 121.54],
+            [25.053, 121.54]
+          ]
+        }
+      ],
+      pins: [
+        {
+          id: 'site-hq',
+          label: '總公司',
+          lat: 25.0629,
+          lng: 121.5796
+        }
+      ]
+    },
+    sensors: []
+  },
+  {
     siteId: 'site-hq',
     type: 'map',
     mapConfig: {
@@ -194,12 +222,33 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
       zoom: 18,
       regions: [
         {
-          id: 'hq-neihu-block',
+          id: 'host-hq-1',
           coords: [
             [25.06325, 121.57885],
             [25.06345, 121.57930],
             [25.06295, 121.57965],
             [25.06275, 121.57915]
+          ]
+        }
+      ],
+      pins: []
+    },
+    sensors: []
+  },
+  {
+    siteId: 'host-hq-1',
+    type: 'map',
+    mapConfig: {
+      center: [25.0631, 121.5792],
+      zoom: 19,
+      regions: [
+        {
+          id: 'zone-hq-office',
+          coords: [
+            [25.06315, 121.57910],
+            [25.06325, 121.57935],
+            [25.06305, 121.57945],
+            [25.06295, 121.57920]
           ]
         }
       ],
