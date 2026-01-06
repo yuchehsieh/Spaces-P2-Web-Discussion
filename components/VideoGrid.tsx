@@ -35,7 +35,8 @@ import {
   CalendarClock,
   Clock,
   LayoutGrid,
-  ArrowRight
+  ArrowRight,
+  Server
 } from 'lucide-react';
 
 export interface VideoSlotData {
@@ -43,12 +44,15 @@ export interface VideoSlotData {
   label: string;
   isRecording: boolean;
   deviceType?: string; 
+  nodeType?: string; // 新增：判斷是否為主機
+  siteGroup?: string; // 新增：所屬 Site Group
+  siteName?: string; // 新增：所屬 Site
 }
 
 interface VideoGridProps {
   gridSize: GridSize;
   activeSlots: Record<number, VideoSlotData>;
-  onDropCamera: (index: number, camera: { id: string; label: string; deviceType?: string }) => void;
+  onDropCamera: (index: number, camera: { id: string; label: string; deviceType?: string; nodeType?: string; siteGroup?: string; siteName?: string }) => void;
   onRemoveCamera: (index: number) => void;
   onToggleRecording: (index: number) => void;
   onJumpToNav?: (nav: MainNavType, nodeId?: string) => void;
@@ -94,7 +98,16 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     e.preventDefault(); setDragOverIndex(null);
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
-      if (data.type === 'device') onDropCamera(index, { id: data.id, label: data.label, deviceType: data.deviceType });
+      if (data.type === 'device') {
+        onDropCamera(index, { 
+          id: data.id, 
+          label: data.label, 
+          deviceType: data.deviceType, 
+          nodeType: data.nodeType,
+          siteGroup: data.siteGroup, 
+          siteName: data.siteName 
+        });
+      }
     } catch (err) { console.error('Invalid drop data', err); }
   };
 
@@ -142,32 +155,62 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     const isSmall = gridSize >= 9;
     const isTiny = gridSize === 16;
 
-    // 環境偵測器卡片
+    // --- 主機卡片渲染 ---
+    if (data.nodeType === 'host') {
+      const isOnline = true; // 模擬主機皆在線
+      return (
+        <div className={`flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 pb-16 transition-all duration-500`}>
+           <div className={`relative ${isSmall ? 'mb-2' : 'mb-6'}`}>
+              <div className={`${isSmall ? 'p-4' : 'p-8'} rounded-[2.5rem] border ${isOnline ? 'border-green-500/30' : 'border-slate-800'} bg-black/40 shadow-2xl transition-all`}>
+                 <div className={isOnline ? 'text-green-400' : 'text-slate-600'}>
+                    <Server size={isSmall ? 32 : 56} />
+                 </div>
+              </div>
+              {isOnline && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-4 border-[#0a0f1e] animate-pulse"></div>
+              )}
+           </div>
+           
+           <div className="text-center space-y-1">
+              {!isTiny && (
+                <h4 className={`${isSmall ? 'text-xs' : 'text-xl'} font-black text-white italic tracking-tight uppercase`}>
+                  {data.label}
+                </h4>
+              )}
+              <div className={`px-4 py-1 rounded-full text-[10px] font-black tracking-[0.2em] border ${isOnline ? 'bg-green-600 text-white border-green-400' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                 {isOnline ? 'ONLINE' : 'OFFLINE'}
+              </div>
+           </div>
+        </div>
+      );
+    }
+
+    // 環境偵測器卡片 (更新：優化佈局避免擋住警報音辨識，並將「無異常」改為「正常」)
     if (data.label === '環境偵測器') {
       const metrics = [
         { icon: <Thermometer size={isTiny ? 12 : 14}/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
         { icon: <Droplets size={isTiny ? 12 : 14}/>, label: "濕度", value: "55", unit: "%", color: "text-blue-400" },
         { icon: <Sun size={isTiny ? 12 : 14}/>, label: "光照", value: "420", unit: "lux", color: "text-yellow-400" },
         { icon: <Waves size={isTiny ? 12 : 14}/>, label: "水浸", value: "正常", color: "text-emerald-400", isStatus: true },
-        { icon: <Mic size={isTiny ? 12 : 14}/>, label: "警報音辨識", value: "無異常", color: "text-emerald-400", isStatus: true }
+        { icon: <Mic size={isTiny ? 12 : 14}/>, label: "警報音辨識", value: "正常", color: "text-emerald-400", isStatus: true }
       ];
       return (
-        <div className={`flex flex-col h-full w-full bg-[#0a0f1e] ${isSmall ? 'p-3' : 'p-5'}`}>
+        <div className={`flex flex-col h-full w-full bg-[#0a0f1e] ${isSmall ? 'p-3' : 'p-5'} pb-16`}>
           {!isTiny && (
-            <div className={`flex items-center gap-2 ${isSmall ? 'mb-2' : 'mb-6'} border-b border-white/5 pb-2`}>
-               <div className={`${isSmall ? 'p-1.5' : 'p-2.5'} bg-cyan-500/10 text-cyan-400 rounded-lg`}><Thermometer size={isSmall ? 16 : 24}/></div>
-               <span className={`${isSmall ? 'text-xs' : 'text-lg'} font-black text-white italic`}>環境偵測器</span>
+            <div className={`flex items-center gap-2 ${isSmall ? 'mb-2' : 'mb-4'} border-b border-white/5 pb-2`}>
+               <div className={`${isSmall ? 'p-1.5' : 'p-2'} bg-cyan-500/10 text-cyan-400 rounded-lg`}><Thermometer size={isSmall ? 16 : 20}/></div>
+               <span className={`${isSmall ? 'text-xs' : 'text-base'} font-black text-white italic`}>環境偵測器</span>
             </div>
           )}
           <div className={`grid ${isSmall ? 'grid-cols-1' : 'grid-cols-2'} gap-2 flex-1 overflow-hidden`}>
              {metrics.map((m, idx) => (
-               <div key={idx} className={`bg-white/5 border border-white/5 rounded-xl ${isSmall ? 'px-3 py-1.5 flex items-center justify-between' : 'p-3 flex flex-col justify-between'} hover:bg-white/10 transition-colors`}>
+               <div key={idx} className={`bg-white/5 border border-white/5 rounded-xl ${isSmall ? 'px-3 py-1 flex items-center justify-between' : 'p-3 flex flex-col justify-between'} hover:bg-white/10 transition-colors ${idx === 4 && !isSmall ? 'col-span-2 flex-row items-center' : ''}`}>
                   <div className="flex items-center gap-2">
                     <div className={m.color}>{m.icon}</div>
-                    <span className="text-[10px] font-bold text-slate-500">{m.label}</span>
+                    <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{m.label}</span>
                   </div>
-                  <div className={`flex items-baseline gap-1 ${isSmall ? '' : 'mt-1'}`}>
-                    <span className={`${isSmall ? 'text-xs' : 'text-xl'} font-black font-mono tracking-tighter ${m.color}`}>{m.value}</span>
+                  <div className={`flex items-baseline gap-1 ${isSmall ? '' : idx === 4 ? 'ml-auto' : 'mt-1'}`}>
+                    <span className={`${isSmall ? 'text-[10px]' : idx === 4 ? 'text-lg' : 'text-xl'} font-black font-mono tracking-tighter ${m.color}`}>{m.value}</span>
                     {m.unit && <span className="text-[8px] font-bold text-slate-600 uppercase">{m.unit}</span>}
                   </div>
                </div>
@@ -180,7 +223,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     // 空間偵測器卡片
     if (data.label === '空間偵測器') {
       return (
-        <div className="flex flex-col h-full w-full bg-[#0a0f1e] p-6 justify-center">
+        <div className="flex flex-col h-full w-full bg-[#0a0f1e] p-6 pb-16 justify-center">
           <div className={`flex flex-col items-center ${isSmall ? 'gap-2' : 'gap-6'}`}>
              <div className={`${isSmall ? 'px-2 py-0.5 text-[8px]' : 'px-5 py-2 text-[11px]'} bg-emerald-500/10 border border-emerald-500/30 rounded-full text-emerald-400 font-black uppercase tracking-[0.2em]`}>模式：人流進出</div>
              <div className="relative">
@@ -193,11 +236,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
-    // 多功能按鈕、PIR、門磁、SOS 專屬卡片與觸發狀態 (新增)
+    // 多功能按鈕、PIR、門磁、SOS 專屬卡片與觸發狀態
     const isTriggeredDevice = ['多功能按鈕', 'PIR', '門磁', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(data.label);
     
     if (isTriggeredDevice) {
-      // 模擬觸發狀態 (Demo 用：UID 結尾為 1 或特定名稱則模擬為觸發)
       const isTriggered = data.id.endsWith('1') || data.label.includes('SOS') || data.label.includes('PIR');
       
       const getSensorIcon = () => {
@@ -212,7 +254,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       const bgGlow = isTriggered ? 'bg-red-500/10 shadow-[0_0_40px_rgba(239,68,68,0.2)]' : 'bg-blue-500/5';
 
       return (
-        <div className={`flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 transition-all duration-500 ${isTriggered ? 'ring-inset ring-2 ring-red-500/30' : ''}`}>
+        <div className={`flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 pb-16 transition-all duration-500 ${isTriggered ? 'ring-inset ring-2 ring-red-500/30' : ''}`}>
            <div className={`relative ${isSmall ? 'mb-2' : 'mb-6'}`}>
               <div className={`${isSmall ? 'p-4' : 'p-8'} rounded-[2.5rem] border ${isTriggered ? 'border-red-500/50 animate-pulse' : 'border-white/10'} ${bgGlow} transition-all`}>
                  <div className={themeColor}>
@@ -240,7 +282,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
     // 通用卡片
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 space-y-4">
+      <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 pb-16 space-y-4">
         <div className="p-5 bg-white/5 rounded-[2rem] border border-white/10 shadow-2xl"><Cpu size={48} className="text-slate-400" /></div>
         <h4 className="text-xl font-black text-white italic tracking-tight">{data.label}</h4>
       </div>
@@ -275,7 +317,16 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     <button onClick={(e) => { e.stopPropagation(); openModal(slotData); }} className="w-7 h-7 flex items-center justify-center bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg shadow-xl"><Info size={16} strokeWidth={3} /></button>
                 </div>
                 
-                <div className="absolute bottom-4 left-4 text-white text-[10px] font-black uppercase tracking-widest bg-black/60 px-3 py-1.5 rounded-lg border border-white/10 backdrop-blur-sm pointer-events-none">{slotData.label}</div>
+                {/* 底部位置標籤區 (更新：放大字體，對齊 Sensor Label) */}
+                <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 pointer-events-none z-10">
+                   {(slotData.siteGroup || slotData.siteName) && (
+                     <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-400 uppercase tracking-widest bg-black/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/10 w-fit shadow-2xl">
+                        <MapPin size={10} className="shrink-0" /> {slotData.siteGroup} > {slotData.siteName}
+                     </div>
+                   )}
+                   <div className="text-white text-[10px] font-black uppercase tracking-[0.1em] bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 w-fit shadow-2xl">{slotData.label}</div>
+                </div>
+
                 <div className="absolute inset-0 border border-transparent group-hover:border-blue-500/50 pointer-events-none transition-colors"></div>
               </div>
             ) : (
@@ -293,11 +344,21 @@ const VideoGrid: React.FC<VideoGridProps> = ({
               <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40 shrink-0">
                  <div className="flex items-center gap-5">
                     <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
-                       {detailModalSlot.deviceType === 'camera' ? <Video size={28}/> : <Cpu size={28}/>}
+                       {detailModalSlot.nodeType === 'host' ? <Server size={28}/> : detailModalSlot.deviceType === 'camera' ? <Video size={28}/> : <Cpu size={28}/>}
                     </div>
                     <div>
                        <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">{detailModalSlot.label}</h2>
-                       <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">SKS Smart Node / UID: {detailModalSlot.id}</p>
+                       <div className="flex items-center gap-3 mt-1">
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">SKS Smart Node / UID: {detailModalSlot.id}</p>
+                          {(detailModalSlot.siteGroup || detailModalSlot.siteName) && (
+                            <>
+                               <div className="w-1 h-1 bg-slate-700 rounded-full"></div>
+                               <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                                  <MapPin size={10} /> {detailModalSlot.siteGroup} > {detailModalSlot.siteName}
+                               </div>
+                            </>
+                          )}
+                       </div>
                     </div>
                  </div>
                  <button onClick={() => setDetailModalSlot(null)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all"><X size={32} /></button>
@@ -452,7 +513,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                              </div>
                           </div>
                        </div>
-                       <div className="flex flex-col items-center justify-center p-12 bg-blue-600/5 border border-dashed border-blue-500/20 rounded-[3rem] text-center gap-6">
+                       <div className="flex flex-col items-center justify-center p-12 bg-blue-600/5 border border-dashed border-purple-500/20 rounded-[3rem] text-center gap-6">
                           <Shield size={64} className="text-blue-500/50" />
                           <button onClick={() => { setDetailModalSlot(null); onJumpToNav?.('security-center'); }} className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 shadow-xl">跳轉保全排程 <ExternalLink size={16}/></button>
                        </div>

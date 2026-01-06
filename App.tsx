@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import SiteTree from './components/SiteTree';
@@ -66,10 +65,40 @@ const App: React.FC = () => {
     setActiveNav(nav);
   };
 
-  const handleDropCamera = (index: number, camera: { id: string; label: string; deviceType?: string }) => {
+  // --- Helper: 解析節點的位置層級 (Site Group > Site) ---
+  const findHierarchy = (targetId: string) => {
+    let result = { siteGroup: '', siteName: '' };
+    
+    const traverse = (nodes: SiteNode[], groupLabel: string = '', siteLabel: string = ''): boolean => {
+      for (const node of nodes) {
+        const currentGroup = node.type === 'group' ? node.label : groupLabel;
+        const currentSite = node.type === 'site' ? node.label : siteLabel;
+
+        if (node.id === targetId) {
+          result = { siteGroup: currentGroup.replace(' (Site Group)', ''), siteName: currentSite.replace(' (Site)', '') };
+          return true;
+        }
+        if (node.children && traverse(node.children, currentGroup, currentSite)) return true;
+      }
+      return false;
+    };
+
+    traverse(SITE_TREE_DATA);
+    return result;
+  };
+
+  const handleDropCamera = (index: number, camera: { id: string; label: string; deviceType?: string; nodeType?: string }) => {
+    // 當節點放下時，即時解析其地理層級
+    const hierarchy = findHierarchy(camera.id);
+    
     setVideoSlots(prev => ({
       ...prev,
-      [index]: { ...camera, isRecording: false }
+      [index]: { 
+        ...camera, 
+        isRecording: false,
+        siteGroup: hierarchy.siteGroup,
+        siteName: hierarchy.siteName
+      }
     }));
   };
 

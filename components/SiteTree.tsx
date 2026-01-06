@@ -85,7 +85,8 @@ const TreeNode: React.FC<{
     }
   };
 
-  const isDraggable = node.type === 'device';
+  // 更新：主機 (host) 也支援拖曳
+  const isDraggable = node.type === 'device' || node.type === 'host';
 
   const handleDragStart = (e: React.DragEvent) => {
     if (isDraggable) {
@@ -93,7 +94,8 @@ const TreeNode: React.FC<{
         id: node.id,
         label: node.label,
         deviceType: node.deviceType,
-        type: 'device'
+        nodeType: node.type, // 新增：傳遞節點類型以利區分主機與設備
+        type: 'device' // 保持通用的 Drag Type
       }));
       e.dataTransfer.effectAllowed = 'copy';
     } else {
