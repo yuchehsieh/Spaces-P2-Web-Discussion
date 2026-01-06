@@ -98,7 +98,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     } catch (err) { console.error('Invalid drop data', err); }
   };
 
-  // --- 動態分頁過濾與排序邏輯 ---
   const availableTabs = useMemo(() => {
     if (!detailModalSlot) return [];
     
@@ -110,39 +109,32 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       { id: 'device_info', label: '設備資訊', icon: <Cpu size={14}/> }
     ];
 
-    // 1. 空間偵測器特有 (無觸發紀錄)
     if (label === '空間偵測器') {
       specializedTabs.push({ id: 'coordinate_plot', label: '座標圖', icon: <LayoutGrid size={14}/> });
       specializedTabs.push({ id: 'history_trend', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
     }
-    // 2. 環境偵測器特有
     else if (label === '環境偵測器') {
       specializedTabs.push({ id: 'history_trend', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
       specializedTabs.push({ id: 'trigger_logs', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
     }
-    // 3. 觸發類設備
-    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕'].includes(label)) {
+    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕', 'SOS按鈕'].includes(label)) {
       specializedTabs.push({ id: 'trigger_logs', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
     }
 
-    // 合併：其餘分頁往前，保全/情境/設備排在最右邊
     return [...specializedTabs, ...universalTabs];
   }, [detailModalSlot]);
 
-  // 當打開彈窗時，預設選中第一個可用的 Tab
   const openModal = (slot: VideoSlotData) => {
     setDetailModalSlot(slot);
-    // 根據可用分頁動態設定初始 Tab
     const tabs = getAvailableTabs(slot.label);
     if (tabs.length > 0) setActiveDetailTab(tabs[0].id);
   };
 
-  // 獨立的小 Helper 用於 openModal 的初始定位
   const getAvailableTabs = (label: string) => {
     const spec = [];
     if (label === '空間偵測器') spec.push({ id: 'coordinate_plot' }, { id: 'history_trend' });
     else if (label === '環境偵測器') spec.push({ id: 'history_trend' }, { id: 'trigger_logs' });
-    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕'].includes(label)) spec.push({ id: 'trigger_logs' });
+    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕', 'SOS按鈕'].includes(label)) spec.push({ id: 'trigger_logs' });
     return [...spec, { id: 'security_info' }, { id: 'scenario_info' }, { id: 'device_info' }];
   };
 
@@ -150,6 +142,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     const isSmall = gridSize >= 9;
     const isTiny = gridSize === 16;
 
+    // 環境偵測器卡片
     if (data.label === '環境偵測器') {
       const metrics = [
         { icon: <Thermometer size={isTiny ? 12 : 14}/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
@@ -184,6 +177,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
+    // 空間偵測器卡片
     if (data.label === '空間偵測器') {
       return (
         <div className="flex flex-col h-full w-full bg-[#0a0f1e] p-6 justify-center">
@@ -199,7 +193,52 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
-    // 通用與其他卡片維持原樣...
+    // 多功能按鈕、PIR、門磁、SOS 專屬卡片與觸發狀態 (新增)
+    const isTriggeredDevice = ['多功能按鈕', 'PIR', '門磁', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(data.label);
+    
+    if (isTriggeredDevice) {
+      // 模擬觸發狀態 (Demo 用：UID 結尾為 1 或特定名稱則模擬為觸發)
+      const isTriggered = data.id.endsWith('1') || data.label.includes('SOS') || data.label.includes('PIR');
+      
+      const getSensorIcon = () => {
+        if (data.label === '多功能按鈕') return <Pill size={isSmall ? 32 : 56} />;
+        if (data.label === 'PIR') return <Activity size={isSmall ? 32 : 56} />;
+        if (data.label === '門磁') return isTriggered ? <DoorOpen size={isSmall ? 32 : 56} /> : <DoorClosed size={isSmall ? 32 : 56} />;
+        if (data.label.includes('SOS') || data.label.includes('緊急')) return <Bell size={isSmall ? 32 : 56} />;
+        return <Cpu size={isSmall ? 32 : 56} />;
+      };
+
+      const themeColor = isTriggered ? 'text-red-500' : 'text-blue-400';
+      const bgGlow = isTriggered ? 'bg-red-500/10 shadow-[0_0_40px_rgba(239,68,68,0.2)]' : 'bg-blue-500/5';
+
+      return (
+        <div className={`flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 transition-all duration-500 ${isTriggered ? 'ring-inset ring-2 ring-red-500/30' : ''}`}>
+           <div className={`relative ${isSmall ? 'mb-2' : 'mb-6'}`}>
+              <div className={`${isSmall ? 'p-4' : 'p-8'} rounded-[2.5rem] border ${isTriggered ? 'border-red-500/50 animate-pulse' : 'border-white/10'} ${bgGlow} transition-all`}>
+                 <div className={themeColor}>
+                    {getSensorIcon()}
+                 </div>
+              </div>
+              {isTriggered && (
+                <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-ping"></div>
+              )}
+           </div>
+           
+           <div className="text-center space-y-1">
+              {!isTiny && (
+                <h4 className={`${isSmall ? 'text-xs' : 'text-xl'} font-black text-white italic tracking-tight uppercase`}>
+                  {data.label}
+                </h4>
+              )}
+              <div className={`px-4 py-1 rounded-full text-[10px] font-black tracking-[0.2em] border ${isTriggered ? 'bg-red-600 text-white border-red-400' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                 {isTriggered ? 'TRIGGERED' : 'NORMAL'}
+              </div>
+           </div>
+        </div>
+      );
+    }
+
+    // 通用卡片
     return (
       <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 space-y-4">
         <div className="p-5 bg-white/5 rounded-[2rem] border border-white/10 shadow-2xl"><Cpu size={48} className="text-slate-400" /></div>
@@ -251,7 +290,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90 backdrop-blur-md p-6 animate-in fade-in duration-300">
            <div className="relative max-w-6xl w-full bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[88vh] ring-1 ring-white/5 animate-in zoom-in-95">
               
-              {/* Header */}
               <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40 shrink-0">
                  <div className="flex items-center gap-5">
                     <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
@@ -265,7 +303,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                  <button onClick={() => setDetailModalSlot(null)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all"><X size={32} /></button>
               </div>
 
-              {/* Tab Navigation (排序：特殊在前，保全/情境/設備在後) */}
               <div className="flex bg-black/20 border-b border-slate-800 px-8 shrink-0 overflow-x-auto no-scrollbar justify-between">
                  <div className="flex">
                     {availableTabs.map(tab => (
@@ -283,10 +320,8 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                  </div>
               </div>
 
-              {/* Tab Content Area */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-10 bg-[#0a0f1e]/50">
                  
-                 {/* 座標圖 (空間偵測器專屬) */}
                  {activeDetailTab === 'coordinate_plot' && (
                     <div className="flex flex-col h-full animate-in fade-in duration-500">
                        <div className="flex items-center justify-between mb-8">
@@ -312,7 +347,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     </div>
                  )}
 
-                 {/* 歷史趨勢 (環境偵測器改為折線圖) */}
                  {activeDetailTab === 'history_trend' && (
                     <div className="flex flex-col h-full animate-in zoom-in-95 duration-500">
                        <div className="flex items-center justify-between mb-8">
@@ -342,7 +376,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     </div>
                  )}
 
-                 {/* 觸發紀錄 (顯示特定 Sensor 的歷史紀錄) */}
                  {activeDetailTab === 'trigger_logs' && (
                     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
                        <h4 className="text-sm font-black text-blue-500 uppercase tracking-widest">設備專屬觸發歷史</h4>
@@ -370,7 +403,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     </div>
                  )}
 
-                 {/* 情境資訊 (僅顯示與該 Sensor 有關的情境) */}
                  {activeDetailTab === 'scenario_info' && (
                     <div className="grid grid-cols-2 gap-10 animate-in fade-in duration-500">
                        <div className="space-y-8">
@@ -404,7 +436,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     </div>
                  )}
 
-                 {/* 保全資訊 */}
                  {activeDetailTab === 'security_info' && (
                     <div className="grid grid-cols-2 gap-10 animate-in fade-in duration-500">
                        <div className="space-y-8">
@@ -428,7 +459,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     </div>
                  )}
 
-                 {/* 設備資訊 */}
                  {activeDetailTab === 'device_info' && (
                     <div className="grid grid-cols-2 gap-10 animate-in fade-in duration-500">
                        <div className="bg-[#1e293b]/40 border border-slate-800 rounded-[2.5rem] p-8 space-y-8">
@@ -451,7 +481,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
               </div>
 
-              {/* Footer */}
               <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end shrink-0 gap-5">
                  <button onClick={() => setDetailModalSlot(null)} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl transition-all active:scale-95 ring-1 ring-white/10">關閉面板</button>
               </div>
@@ -481,7 +510,6 @@ const TrendLineCard: React.FC<{ label: string; values: number[]; color: string }
        </div>
        <div className="h-40 w-full relative pt-4">
           <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-             {/* Gradient Background */}
              <defs>
                 <linearGradient id={`grad-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
                    <stop offset="0%" stopColor={color} stopOpacity="0.2" />
@@ -492,7 +520,6 @@ const TrendLineCard: React.FC<{ label: string; values: number[]; color: string }
                 d={`M 0 100 L ${points} L 100 100 Z`} 
                 fill={`url(#grad-${color.replace('#','')})`}
              />
-             {/* The Line */}
              <polyline
                 fill="none"
                 stroke={color}
@@ -502,7 +529,6 @@ const TrendLineCard: React.FC<{ label: string; values: number[]; color: string }
                 points={points}
                 style={{ filter: `drop-shadow(0 0 5px ${color})` }}
              />
-             {/* Dots */}
              {values.map((v, i) => (
                 <circle 
                   key={i}

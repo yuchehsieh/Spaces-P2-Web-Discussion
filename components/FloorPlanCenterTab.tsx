@@ -24,7 +24,13 @@ import {
   ChevronDown,
   ChevronRight,
   MapPin,
-  Maximize
+  Maximize,
+  Thermometer,
+  UserSearch,
+  Tablet,
+  Activity,
+  DoorClosed,
+  Wifi
 } from 'lucide-react';
 import { SiteNode, FloorPlanData, SensorPosition } from '../types';
 import { SITE_TREE_DATA, INITIAL_FLOOR_PLANS } from '../constants';
@@ -82,13 +88,20 @@ const TreeItem: React.FC<TreeItemProps> = ({
 
   const getIcon = () => {
     if (isDevice) {
+      // 特定設備標籤與顏色同步 (與安防中心 SiteTree.tsx 一致)
+      if (node.label === '環境偵測器') return <Thermometer size={14} className={isPlaced ? 'text-slate-600' : 'text-cyan-400'} />;
+      if (node.label === '空間偵測器') return <UserSearch size={14} className={isPlaced ? 'text-slate-600' : 'text-emerald-400'} />;
+      if (node.label === '多功能按鈕') return <Tablet size={14} className={isPlaced ? 'text-slate-600' : 'text-amber-400'} />;
+      if (node.label === 'PIR') return <Activity size={14} className={isPlaced ? 'text-slate-600' : 'text-blue-400'} />;
+      if (node.label === '門磁') return <DoorClosed size={14} className={isPlaced ? 'text-slate-600' : 'text-orange-400'} />;
+
       const colorClass = isPlaced ? 'text-slate-600' : isSelected ? 'text-white' : 'text-slate-400';
       switch (node.deviceType) {
         case 'camera': return <Video size={14} className={colorClass} />;
         case 'sensor': return <Cpu size={14} className={colorClass} />;
         case 'door': return <DoorOpen size={14} className={colorClass} />;
         case 'emergency': return <Bell size={14} className={colorClass} />;
-        default: return <Cpu size={14} className={colorClass} />;
+        default: return <Wifi size={14} className={colorClass} />;
       }
     }
     const colorClass = isSelected ? 'text-white' : '';

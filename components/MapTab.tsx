@@ -9,7 +9,8 @@ import {
   Plus,
   Minus,
   Maximize,
-  AlertCircle
+  AlertCircle,
+  FolderOpen
 } from 'lucide-react';
 import { SITE_TREE_DATA, MOCK_EVENTS, INITIAL_FLOOR_PLANS } from '../constants';
 import { SiteNode, FloorPlanData, SensorPosition } from '../types';
@@ -276,6 +277,17 @@ const MapTab: React.FC<MapTabProps> = ({
   const emptyStateInfo = useMemo(() => {
     if (!selectedSite || activePlanData) return null;
     const originalNode = originalSelectionId ? findNodeById(SITE_TREE_DATA, originalSelectionId) : null;
+    
+    // 如果是分區層級且無圖資
+    if (selectedSite.type === 'zone') {
+       return { 
+         targetId: selectedSite.id, 
+         title: "分區不支援配置圖資", 
+         desc: "分區層級不再提供獨立圖資配置功能，請直接於上層「主機」節點檢視或配置所有關聯標註。", 
+         isZoneLevel: true 
+       };
+    }
+
     if (originalNode?.type === 'device') {
         const parentZone = getParentNode(originalNode.id);
         return { targetId: parentZone?.id || originalNode.id, title: "設備尚未配置視覺定位", desc: `此設備及其上層區域皆無圖資，請至「平面圖中心」配置。`, guide: `請配置圖資` };
@@ -349,10 +361,17 @@ const MapTab: React.FC<MapTabProps> = ({
                         )
                     ) : (
                         <div className="h-full w-full bg-[#050914] flex flex-col items-center justify-center animate-in zoom-in-95 duration-500">
-                            <AlertCircle size={64} className="text-slate-800 mb-10" />
-                            <h2 className="text-2xl font-black text-white uppercase mb-4">{emptyStateInfo?.title}</h2>
+                            {emptyStateInfo?.isZoneLevel ? (
+                               <FolderOpen size={64} className="text-slate-800 mb-10" />
+                            ) : (
+                               <AlertCircle size={64} className="text-slate-800 mb-10" />
+                            )}
+                            <h2 className="text-2xl font-black text-white uppercase mb-4 text-center">{emptyStateInfo?.title}</h2>
                             <p className="text-slate-500 text-sm mb-10 max-w-md text-center">{emptyStateInfo?.desc}</p>
-                            <button onClick={() => onJumpToFloorPlan?.(emptyStateInfo?.targetId!)} className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-900/20"><ExternalLink size={18}/> {emptyStateInfo?.guide}</button>
+                            
+                            {!emptyStateInfo?.isZoneLevel && (
+                               <button onClick={() => onJumpToFloorPlan?.(emptyStateInfo?.targetId!)} className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 transition-all shadow-xl shadow-blue-900/20"><ExternalLink size={18}/> {emptyStateInfo?.guide}</button>
+                            )}
                         </div>
                     )}
                 </>
