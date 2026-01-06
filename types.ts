@@ -9,6 +9,22 @@ export interface SiteNode {
   address?: string; // 據點地址 (用於 GIS 導航)
 }
 
+export interface Schedule {
+  id: string;
+  name: string;
+  siteId: string;
+  siteLabel: string;
+  hostId: string;
+  hostLabel: string;
+  zoneId: string; 
+  zoneLabel: string;
+  armTime: string;    
+  disarmTime: string; 
+  days: string[]; 
+  isActive: boolean;
+  createdBy: string;
+}
+
 export interface VLMData {
   captureUrl: string;
   fullSceneUrl: string;

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import SiteTree from './components/SiteTree';
@@ -28,6 +29,9 @@ const App: React.FC = () => {
   const [defaultViewId, setDefaultViewId] = useState<string | null>(() => localStorage.getItem('sks_default_map_view'));
 
   const [videoSlots, setVideoSlots] = useState<Record<number, VideoSlotData>>({});
+  
+  // 用於控制事件中心預設顯示的分頁
+  const [eventCenterInitialTab, setEventCenterInitialTab] = useState<'list' | 'settings' | 'security-schedule'>('list');
 
   const idsWithFloorPlan = useMemo(() => new Set(INITIAL_FLOOR_PLANS.map(p => p.siteId)), []);
 
@@ -53,9 +57,12 @@ const App: React.FC = () => {
     setActiveNav('floorplan-center');
   };
 
-  // 處理來自宮格詳情彈窗的跳轉請求
-  const handleJumpToNav = (nav: MainNavType, nodeId?: string) => {
-    if (nodeId) setSelectedNodeId(nodeId);
+  const handleJumpToNav = (nav: MainNavType, subTab?: string) => {
+    if (nav === 'event-center' && subTab === 'security-schedule') {
+      setEventCenterInitialTab('security-schedule');
+    } else {
+      setEventCenterInitialTab('list');
+    }
     setActiveNav(nav);
   };
 
@@ -191,7 +198,7 @@ const App: React.FC = () => {
                         onJumpToNav={handleJumpToNav}
                         />
                     )}
-                    {activeTab === 'security' && <SecurityTab />}
+                    {activeTab === 'security' && <SecurityTab onJumpToNav={(nav) => handleJumpToNav(nav, 'security-schedule')} />}
                     {activeTab === 'map' && (
                         <MapTab 
                           activeNodeId={selectedNodeId}
@@ -227,7 +234,7 @@ const App: React.FC = () => {
              ) : activeNav === 'floorplan-center' ? (
                 <FloorPlanCenterTab initialSiteId={selectedNodeId} />
              ) : activeNav === 'event-center' ? (
-                <EventTab />
+                <EventTab initialSubTab={eventCenterInitialTab} />
              ) : activeNav === 'device-center' ? (
                 <DeviceTab />
              ) : (

@@ -179,7 +179,7 @@ const EventManagementView: React.FC = () => {
           <div className="flex items-center gap-4">
             <button onClick={() => setIsCreating(false)} className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl border border-slate-700 transition-all"><ChevronLeft size={24} /></button>
             <div>
-              <h1 className="text-3xl font-black text-white tracking-tighter">新增自訂事件 <span className="text-blue-600">.</span></h1>
+              <h1 className="text-3xl font-black text-white tracking-tighter">新增自訂情境 <span className="text-blue-600">.</span></h1>
               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Configure automated rules and responses</p>
             </div>
           </div>
@@ -200,7 +200,7 @@ const EventManagementView: React.FC = () => {
             <h3 className="text-xl font-black text-white tracking-tighter mb-8 flex items-center gap-3"><Building2 size={20} className="text-blue-500" /> 基本資訊與範圍</h3>
             <div className="space-y-8 flex-1">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">事件名稱</label>
+                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">情境名稱</label>
                 <input type="text" placeholder="例如：機房高溫連動錄影..." value={newEventName} onChange={(e) => setNewEventName(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-3 px-4 text-base font-bold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-800 shadow-inner" />
               </div>
               <div className="space-y-5">
@@ -294,7 +294,7 @@ const EventManagementView: React.FC = () => {
                           </div>
                        </div>
                        <p className="text-[10px] text-slate-500 italic leading-relaxed">
-                         若設定此項，需滿足上方所有條件並「持續維持」該時間長度才會正式觸發事件。
+                         若設定此項，需滿足上方所有條件並「持續維持」該時間長度才會正式觸發情境。
                        </p>
                     </div>
 
@@ -410,7 +410,7 @@ const EventManagementView: React.FC = () => {
                                         <button 
                                           key={act.id} 
                                           onClick={() => updateLinkedDevice(link.id, { action: act.id })}
-                                          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${link.action === act.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/30' : 'bg-black/20 border-slate-800 text-slate-600 hover:border-slate-700'}`}
+                                          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${link.action === act.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40' : 'bg-black/20 border-slate-800 text-slate-600 hover:border-slate-700'}`}
                                         >
                                           {act.label}
                                           {link.action === act.id && <Check size={14} strokeWidth={4} />}
@@ -458,7 +458,7 @@ const EventManagementView: React.FC = () => {
                    <div className="flex items-center gap-5">
                       <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40"><Eye size={28}/></div>
                       <div>
-                        <h2 className="text-2xl font-black text-white tracking-tighter italic">事件設定預覽 <span className="text-blue-500">.</span></h2>
+                        <h2 className="text-2xl font-black text-white tracking-tighter italic">情境設定預覽 <span className="text-blue-500">.</span></h2>
                         <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Review your rule before deployment</p>
                       </div>
                    </div>
@@ -469,7 +469,7 @@ const EventManagementView: React.FC = () => {
                    <div className="space-y-4">
                       <div className="flex items-center gap-2 text-[11px] font-black text-blue-500 uppercase tracking-widest"><Building2 size={14}/> 基本範圍</div>
                       <div className="bg-[#1e293b]/40 p-6 rounded-[1.5rem] border border-slate-800 space-y-4">
-                         <div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold">事件規則名稱</span><span className="text-sm font-black text-white">{newEventName || '未命名事件'}</span></div>
+                         <div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold">情境規則名稱</span><span className="text-sm font-black text-white">{newEventName || '未命名情境'}</span></div>
                          <div className="flex justify-between items-center"><span className="text-xs text-slate-500 font-bold">部署範圍</span><span className="text-xs font-bold text-slate-300">{currentSiteLabel} > {currentHostLabel} > {currentZoneLabel}</span></div>
                       </div>
                    </div>
@@ -549,17 +549,17 @@ const EventManagementView: React.FC = () => {
     <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12 pb-8 border-b border-slate-800/50">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tighter mb-2">管理事件 <span className="text-blue-600">.</span></h1>
+          <h1 className="text-4xl font-black text-white tracking-tighter mb-2">情境管理 <span className="text-blue-600">.</span></h1>
           <p className="text-sm text-slate-500 font-medium">根據個人需求自訂感測器通知與設備連動規則</p>
         </div>
-        <button onClick={() => setIsCreating(true)} className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/30 flex items-center gap-3 active:scale-95"><Plus size={18} /> 新增自訂事件</button>
+        <button onClick={() => setIsCreating(true)} className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/30 flex items-center gap-3 active:scale-95"><Plus size={18} /> 新增自訂情境</button>
       </div>
 
       <div className="bg-[#111827] border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl mb-12">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-black/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
-              <th className="px-8 py-6">事件規則名稱</th>
+              <th className="px-8 py-6">情境規則名稱</th>
               <th className="px-8 py-6">連動範圍 (SCOPE)</th>
               <th className="px-8 py-6">觸發邏輯</th>
               <th className="px-8 py-6">執行動作</th>
@@ -635,9 +635,9 @@ const EventManagementView: React.FC = () => {
             <Info size={32} />
          </div>
          <div className="space-y-2">
-            <h3 className="text-2xl font-black text-white tracking-tighter">什麼是自訂事件？</h3>
+            <h3 className="text-2xl font-black text-white tracking-tighter">什麼是情境？</h3>
             <p className="text-sm text-slate-400 leading-relaxed font-medium">
-               自訂事件允許您針對特定的硬體狀態設定通知規則。這些規則獨立於安防中心的設防狀態，無論保全是否開啟，符合條件時系統皆會發送通知。
+               自訂情境允許您針對特定的硬體狀態設定通知規則。這些規則獨立於安防中心的設防狀態，無論保全是否開啟，符合條件時系統皆會發送通知。
             </p>
          </div>
       </div>
