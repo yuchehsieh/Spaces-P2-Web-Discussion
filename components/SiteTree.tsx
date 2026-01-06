@@ -12,7 +12,12 @@ import {
   FolderOpen,
   Wifi,
   Image as ImageIcon,
-  Star
+  Star,
+  Thermometer,
+  UserSearch,
+  Tablet,
+  Activity,
+  DoorClosed
 } from 'lucide-react';
 import { SiteNode } from '../types';
 
@@ -26,7 +31,6 @@ interface SiteTreeProps {
   onSetDefaultView?: (id: string | null) => void;
 }
 
-// Helper to filter the tree based on search term
 const filterTree = (nodes: SiteNode[], searchTerm: string): SiteNode[] => {
   if (!searchTerm) return nodes;
   const lowerTerm = searchTerm.toLowerCase();
@@ -77,18 +81,19 @@ const TreeNode: React.FC<{
   const handleIconClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onSetDefaultView) {
-      // 如果點擊的是已經被設為預設的星號，可以考慮取消預設 (設為 null)
-      // 但根據需求「星號只能有一個」，我們通常是直接切換
       onSetDefaultView(node.id);
     }
   };
 
+  const isDraggable = node.type === 'device';
+
   const handleDragStart = (e: React.DragEvent) => {
-    if (node.deviceType === 'camera') {
+    if (isDraggable) {
       e.dataTransfer.setData('application/json', JSON.stringify({
         id: node.id,
         label: node.label,
-        type: node.deviceType
+        deviceType: node.deviceType,
+        type: 'device'
       }));
       e.dataTransfer.effectAllowed = 'copy';
     } else {
@@ -98,6 +103,12 @@ const TreeNode: React.FC<{
 
   const getIcon = () => {
     if (node.type === 'device') {
+      if (node.label === '環境偵測器') return <Thermometer size={14} className="text-cyan-400" />;
+      if (node.label === '空間偵測器') return <UserSearch size={14} className="text-emerald-400" />;
+      if (node.label === '多功能按鈕') return <Tablet size={14} className="text-amber-400" />;
+      if (node.label === 'PIR') return <Activity size={14} className="text-blue-400" />;
+      if (node.label === '門磁') return <DoorClosed size={14} className="text-orange-400" />;
+
       switch (node.deviceType) {
         case 'camera': return <Video size={14} className="text-slate-400" />;
         case 'door': return <DoorOpen size={14} className="text-slate-400" />;
@@ -114,8 +125,6 @@ const TreeNode: React.FC<{
       default: return null;
     }
   };
-
-  const isDraggable = node.deviceType === 'camera';
 
   return (
     <div className="select-none">
@@ -143,7 +152,6 @@ const TreeNode: React.FC<{
           {node.label}
         </span>
 
-        {/* 圖資狀態 ICON - 支援點擊設為預設 */}
         {isDefaultView ? (
           <div 
             className="ml-auto flex items-center pr-1" 

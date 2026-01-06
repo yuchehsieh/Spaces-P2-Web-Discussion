@@ -29,15 +29,10 @@ const App: React.FC = () => {
 
   const [videoSlots, setVideoSlots] = useState<Record<number, VideoSlotData>>({});
 
-  // 計算具備圖資的節點集合
   const idsWithFloorPlan = useMemo(() => new Set(INITIAL_FLOOR_PLANS.map(p => p.siteId)), []);
 
   const handleNodeSelect = (node: SiteNode) => {
     setSelectedNodeId(node.id);
-    
-    // --- 關鍵優化：手動切換優先 ---
-    // 當使用者在地圖分頁點擊樹狀圖，代表要切換視角，此時自動取消「選中事件」的狀態
-    // 這樣 MapTab 的優先級引擎就會從「事件導向」轉為「手動選擇導向」
     if (activeTab === 'map' && selectedEventId) {
       setSelectedEventId(null);
     }
@@ -53,13 +48,18 @@ const App: React.FC = () => {
     }
   };
 
-  // --- 跳轉邏輯 ---
   const handleJumpToFloorPlan = (siteId: string) => {
     setSelectedNodeId(siteId);
     setActiveNav('floorplan-center');
   };
 
-  const handleDropCamera = (index: number, camera: { id: string; label: string }) => {
+  // 處理來自宮格詳情彈窗的跳轉請求
+  const handleJumpToNav = (nav: MainNavType, nodeId?: string) => {
+    if (nodeId) setSelectedNodeId(nodeId);
+    setActiveNav(nav);
+  };
+
+  const handleDropCamera = (index: number, camera: { id: string; label: string; deviceType?: string }) => {
     setVideoSlots(prev => ({
       ...prev,
       [index]: { ...camera, isRecording: false }
@@ -107,7 +107,6 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-slate-200 overflow-hidden font-sans">
       
-      {/* 0. Header */}
       <header className="h-14 bg-[#004a99] flex items-center justify-between px-4 border-b border-slate-800 shrink-0 z-30 shadow-md">
          <div className="flex items-center">
             <div className="flex items-center justify-center p-1">
@@ -130,7 +129,6 @@ const App: React.FC = () => {
          </div>
       </header>
 
-      {/* Main Area */}
       <div className="flex-1 flex min-h-0">
         <Sidebar activeNav={activeNav} setActiveNav={setActiveNav} />
 
@@ -143,7 +141,7 @@ const App: React.FC = () => {
                 showFloorPlanIcons={activeTab === 'map'}
                 idsWithFloorPlan={idsWithFloorPlan}
                 defaultViewId={defaultViewId}
-                onSetDefaultView={handleSetDefaultView} // 傳入設為預設視角的回調
+                onSetDefaultView={handleSetDefaultView}
             />
 
             <div className="flex-1 flex flex-col min-w-0 bg-[#050914] relative border-r border-slate-800">
@@ -190,6 +188,7 @@ const App: React.FC = () => {
                         onDropCamera={handleDropCamera}
                         onRemoveCamera={handleRemoveCamera}
                         onToggleRecording={handleToggleRecording}
+                        onJumpToNav={handleJumpToNav}
                         />
                     )}
                     {activeTab === 'security' && <SecurityTab />}
@@ -202,7 +201,7 @@ const App: React.FC = () => {
                           defaultViewId={defaultViewId}
                           onSetDefaultView={handleSetDefaultView}
                           onJumpToFloorPlan={handleJumpToFloorPlan}
-                          onAutoSelectNode={(id) => setSelectedNodeId(id)} // 傳入自動選中樹狀圖回調
+                          onAutoSelectNode={(id) => setSelectedNodeId(id)}
                         />
                     )}
                     {activeTab === 'vlm' && <VLMTab />}
