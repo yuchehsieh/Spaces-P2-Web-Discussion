@@ -1,3 +1,4 @@
+
 import { SiteNode, SecurityEvent, FloorPlanData } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
@@ -57,7 +58,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 id: 'zone-zs-warehouse',
                 label: '倉庫 (分區1)',
                 type: 'zone',
-                isOpen: false,
+                isOpen: true,
                 children: [
                   { id: 'w-door-1', label: '門磁', type: 'device', deviceType: 'door' },
                   { id: 'w-ipc-1', label: 'IPC', type: 'device', deviceType: 'camera' },
@@ -67,9 +68,10 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 id: 'zone-zs-manager',
                 label: '部長室 (分區2)',
                 type: 'zone',
-                isOpen: false,
+                isOpen: true,
                 children: [
                   { id: 'm-door-1', label: '門磁', type: 'device', deviceType: 'door' },
+                  { id: 'm-sos-1', label: 'SOS按鈕', type: 'device', deviceType: 'emergency' },
                 ],
               },
             ],
@@ -189,85 +191,104 @@ export const MOCK_EVENTS: SecurityEvent[] = [
 ];
 
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
+  // --- 台北市群組 ---
   {
     siteId: 'taipei-group',
     type: 'map',
     mapConfig: {
       center: [25.055, 121.55],
       zoom: 13,
-      regions: [
-        {
-          id: 'site-zhongshan',
-          coords: [
-            [25.053, 121.53],
-            [25.058, 121.53],
-            [25.058, 121.54],
-            [25.053, 121.54]
-          ]
-        }
-      ],
+      regions: [],
       pins: [
-        {
-          id: 'site-hq',
-          label: '總公司',
-          lat: 25.0629,
-          lng: 121.5796
-        }
+        { id: 'site-hq', label: '總公司', lat: 25.0629, lng: 121.5796 },
+        { id: 'site-zhongshan', label: '新光保全-中山處', lat: 25.0528, lng: 121.5332 }
       ]
     },
     sensors: []
   },
+  // --- 台中市群組 ---
+  {
+    siteId: 'taichung-group',
+    type: 'map',
+    mapConfig: {
+      center: [24.25, 120.65],
+      zoom: 11,
+      regions: [],
+      pins: [
+        { id: 'site-beitun', label: '新光保全-北屯處', lat: 24.1732, lng: 120.6845 },
+        { id: 'site-dajia', label: '新光保全-大甲處', lat: 24.3486, lng: 120.6225 }
+      ]
+    },
+    sensors: []
+  },
+  // --- 各 Site 預設地圖 ---
   {
     siteId: 'site-hq',
     type: 'map',
     mapConfig: {
       center: [25.0629, 121.5796],
-      zoom: 18,
-      regions: [
-        {
-          id: 'host-hq-1',
-          coords: [
-            [25.06325, 121.57885],
-            [25.06345, 121.57930],
-            [25.06295, 121.57965],
-            [25.06275, 121.57915]
-          ]
-        }
-      ],
-      pins: []
+      zoom: 17,
+      regions: [],
+      pins: [{ id: 'site-hq', label: '總公司', lat: 25.0629, lng: 121.5796 }]
     },
     sensors: []
   },
   {
-    siteId: 'host-hq-1',
+    siteId: 'site-zhongshan',
     type: 'map',
     mapConfig: {
-      center: [25.0631, 121.5792],
-      zoom: 19,
-      regions: [
-        {
-          id: 'zone-hq-office',
-          coords: [
-            [25.06315, 121.57910],
-            [25.06325, 121.57935],
-            [25.06305, 121.57945],
-            [25.06295, 121.57920]
-          ]
-        }
-      ],
-      pins: []
+      center: [25.0528, 121.5332],
+      zoom: 17,
+      regions: [],
+      pins: [{ id: 'site-zhongshan', label: '新光保全-中山處', lat: 25.0528, lng: 121.5332 }]
     },
     sensors: []
   },
   {
-    siteId: 'zone-hq-office',
+    siteId: 'site-beitun',
+    type: 'map',
+    mapConfig: {
+      center: [24.1732, 120.6845],
+      zoom: 17,
+      regions: [],
+      pins: [{ id: 'site-beitun', label: '新光保全-北屯處', lat: 24.1732, lng: 120.6845 }]
+    },
+    sensors: []
+  },
+  {
+    siteId: 'site-dajia',
+    type: 'map',
+    mapConfig: {
+      center: [24.3486, 120.6225],
+      zoom: 17,
+      regions: [],
+      pins: [{ id: 'site-dajia', label: '新光保全-大甲處', lat: 24.3486, lng: 120.6225 }]
+    },
+    sensors: []
+  },
+  // --- 主機層級為影像 (BMP) ---
+  {
+    siteId: 'host-hq-1',
     type: 'image',
     imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
+    hostPosition: { x: 75, y: 50 },
     sensors: [
       { id: 'c-webcam', x: 23.5, y: 41.5 },  
       { id: 'c-ipc-1', x: 44.8, y: 38.2 },   
       { id: 'c-pir', x: 33.6, y: 50.8 },     
       { id: 'o-door', x: 18.5, y: 71.2 },    
+    ]
+  },
+  {
+    siteId: 'host-zs-1',
+    type: 'image',
+    imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan%202.png?raw=true',
+    hostPosition: { x: 70, y: 30 },
+    sensors: [
+      { id: 'w-door-1', x: 20, y: 25 },  
+      { id: 'w-ipc-1', x: 40, y: 20 },   
+      { id: 'm-door-1', x: 25, y: 65 },  
+      { id: 'm-sos-1', x: 50, y: 75 },   
     ]
   }
 ];

@@ -47,13 +47,13 @@ export interface SecurityEvent {
 
 export interface SensorPosition {
   id: string;
-  x: number; // percentage 0-100 or relative to map bounds
-  y: number; // percentage 0-100 or relative to map bounds
+  x: number; // percentage 0-100
+  y: number; // percentage 0-100
 }
 
 export interface MapRegion {
   id: string;
-  coords: [number, number][]; // 儲存精確的頂點經緯度陣列，以支援不規則四邊形
+  coords: [number, number][]; // 儲存精確的頂點經緯度陣列
 }
 
 export interface MapPin {
@@ -67,11 +67,12 @@ export interface FloorPlanData {
   siteId: string;
   type: 'image' | 'map';
   imageUrl?: string;
+  hostPosition?: { x: number; y: number }; // 新增：主機在 BMP 上的位置
   mapConfig?: {
     center: [number, number];
     zoom: number;
-    regions: MapRegion[]; // 支援多個選取框
-    pins?: MapPin[];      // 支援多個據點標註
+    regions: MapRegion[]; 
+    pins?: MapPin[];      
   };
   sensors: SensorPosition[];
 }
