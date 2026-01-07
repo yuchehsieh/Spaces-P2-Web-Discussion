@@ -27,7 +27,9 @@ import {
   AlertTriangle,
   CalendarClock,
   Shield,
-  DoorOpen
+  DoorOpen,
+  Pencil,
+  Power
 } from 'lucide-react';
 import { SITE_TREE_DATA } from '../constants';
 import { SiteNode } from '../types';
@@ -46,6 +48,23 @@ interface LinkedDevice {
   deviceId: string;
   action: string;
   delay: string; // 延時執行 (秒)
+}
+
+interface ScenarioRule {
+  id: string;
+  name: string;
+  siteLabel: string;
+  hostLabel: string;
+  zoneLabel: string;
+  triggerDevice: string;
+  triggerEvent: string;
+  armTime: string;
+  disarmTime: string;
+  selectedDays: string[];
+  onlyDuringArmed: boolean;
+  notifyRecipients: string[];
+  linkedDevicesCount: number;
+  isActive: boolean;
 }
 
 // --- Constants ---
@@ -102,11 +121,51 @@ const GATE_ACTIONS = [
   { id: 'gate_stop', label: '停止動作' }
 ];
 
+const INITIAL_SCENARIOS: ScenarioRule[] = [
+  {
+    id: 'RULE_T01',
+    name: '大辦公區高溫告警',
+    siteLabel: '總公司',
+    hostLabel: '商研中心',
+    zoneLabel: '大辦公區',
+    triggerDevice: '環境偵測器',
+    triggerEvent: '溫度 > 35℃',
+    armTime: '00:00',
+    disarmTime: '23:59',
+    selectedDays: ['一', '二', '三', '四', '五'],
+    onlyDuringArmed: false,
+    notifyRecipients: ['Shelby', 'Admin'],
+    linkedDevicesCount: 1,
+    isActive: true
+  },
+  {
+    id: 'RULE_S04',
+    name: 'SOS 緊急救助連動',
+    siteLabel: '北屯駐區',
+    hostLabel: '主機1',
+    zoneLabel: '大辦公區',
+    triggerDevice: 'SOS緊急按鈕',
+    triggerEvent: '觸發',
+    armTime: '18:00',
+    disarmTime: '08:00',
+    selectedDays: ['一', '二', '三', '四', '五', '六', '日'],
+    onlyDuringArmed: true,
+    notifyRecipients: ['Admin', 'Polly'],
+    linkedDevicesCount: 2,
+    isActive: false
+  }
+];
+
 const EventManagementView: React.FC = () => {
+  const [scenarios, setScenarios] = useState<ScenarioRule[]>(INITIAL_SCENARIOS);
   const [isCreating, setIsCreating] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [newEventName, setNewEventName] = useState('');
   
+  // UI States
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   // Area Selection States
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [selectedHostId, setSelectedHostId] = useState<string>('');
@@ -117,7 +176,7 @@ const EventManagementView: React.FC = () => {
   const [disarmTime, setDisarmTime] = useState('23:59');
   const [selectedDays, setSelectedDays] = useState<string[]>(DAYS_OPTIONS);
 
-  // Trigger Logic States - Now only one condition
+  // Trigger Logic States
   const [triggerCondition, setTriggerCondition] = useState<TriggerCondition>(
     { id: 'initial', device: '', event: '', operator: '>', value: '' }
   );
@@ -178,6 +237,17 @@ const EventManagementView: React.FC = () => {
   const removeLinkedDevice = (id: string) => linkedDevices.length > 1 && setLinkedDevices(linkedDevices.filter(d => d.id !== id));
   const updateLinkedDevice = (id: string, updates: Partial<LinkedDevice>) => setLinkedDevices(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
 
+  const toggleScenarioActive = (id: string) => {
+    setScenarios(prev => prev.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
+    setActiveMenuId(null);
+  };
+
+  const deleteScenario = (id: string) => {
+    setScenarios(prev => prev.filter(s => s.id !== id));
+    setDeleteConfirmId(null);
+    setActiveMenuId(null);
+  };
+
   const getActionLabel = (type: 'camera' | 'host' | 'gate', actionId: string) => {
     if (type === 'camera') return CAMERA_ACTIONS.find(a => a.id === actionId)?.label || actionId;
     if (type === 'host') return HOST_ACTIONS.find(a => a.id === actionId)?.label || actionId;
@@ -187,6 +257,7 @@ const EventManagementView: React.FC = () => {
   if (isCreating) {
     return (
       <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
+        {/* 新增情境 UI 部份保持不變... */}
         <div className="flex items-center justify-between mb-10 pb-6 border-b border-slate-800">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsCreating(false)} className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl border border-slate-700 transition-all"><ChevronLeft size={24} /></button>
@@ -496,7 +567,7 @@ const EventManagementView: React.FC = () => {
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-black/20 border border-dashed border-slate-800 rounded-[2.5rem] opacity-40">
                   <Plus size={48} className="text-slate-600 mb-4" />
-                  <p className="text-sm font-black text-slate-400 uppercase tracking-widest">尚未解鎖設定</p>
+                  <p className="text-sm font-bold text-slate-500">請先於第一欄位選擇分區</p>
                 </div>
               )}
             </div>
@@ -620,76 +691,122 @@ const EventManagementView: React.FC = () => {
         <button onClick={() => setIsCreating(true)} className="px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-900/30 flex items-center gap-3 active:scale-95"><Plus size={18} /> 新增自訂情境</button>
       </div>
 
-      <div className="bg-[#111827] border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl mb-12">
+      <div className="bg-[#111827] border border-slate-800 rounded-[2.5rem] overflow-visible shadow-2xl mb-12">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-black/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
               <th className="px-8 py-6">情境規則名稱</th>
-              <th className="px-8 py-6">連動範圍 (SCOPE)</th>
+              <th className="px-8 py-6">範圍 (SCOPE)</th>
               <th className="px-8 py-6">觸發邏輯</th>
+              <th className="px-8 py-6">執行排程</th>
+              <th className="px-8 py-6">設防限制</th>
               <th className="px-8 py-6">執行動作</th>
               <th className="px-8 py-6">狀態</th>
               <th className="px-8 py-6 text-right">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
-            {/* Row 1: 高溫告警 */}
-            <tr className="group hover:bg-white/5 transition-all">
-              <td className="px-8 py-6">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-bold text-white">大辦公區高溫告警</span>
-                  <span className="text-[10px] font-mono text-slate-600 font-black uppercase tracking-widest">ID: RULE_T01</span>
-                </div>
-              </td>
-              <td className="px-8 py-6"><span className="text-xs font-bold text-slate-400">總公司 (Site) > 商研中心 (主機1) > 大辦公區 (分區1)</span></td>
-              <td className="px-8 py-6">
-                <div className="flex items-center gap-2 bg-[#050914] px-3 py-2 rounded-xl border border-slate-800 w-fit">
-                   <Cpu size={14} className="text-orange-400"/>
-                   <span className="text-xs text-slate-300 font-bold">環境偵測器 (溫度 > 35℃)</span>
-                </div>
-              </td>
-              <td className="px-8 py-6">
-                <div className="flex gap-2">
-                   <div className="w-8 h-8 rounded-lg bg-blue-900/20 border border-blue-700/50 flex items-center justify-center text-blue-400"><Mail size={14}/></div>
-                   <div className="w-8 h-8 rounded-lg bg-blue-900/20 border border-blue-700/50 flex items-center justify-center text-blue-400"><Video size={14}/></div>
-                </div>
-              </td>
-              <td className="px-8 py-6">
-                <div className="w-12 h-6 bg-blue-600 rounded-full relative shadow-inner cursor-pointer">
-                  <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-md"></div>
-                </div>
-              </td>
-              <td className="px-8 py-6 text-right"><button className="p-2 text-slate-600 hover:text-white transition-colors"><MoreVertical size={18}/></button></td>
-            </tr>
-
-            {/* Row 2: SOS 連動 */}
-            <tr className="group hover:bg-white/5 transition-all">
-              <td className="px-8 py-6">
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm font-bold text-white">SOS 緊急救助連動</span>
-                  <span className="text-[10px] font-mono text-slate-600 font-black uppercase tracking-widest">ID: RULE_S04</span>
-                </div>
-              </td>
-              <td className="px-8 py-6"><span className="text-xs font-bold text-slate-400">北屯駐區 (主機1) > 大辦公區 (分區1)</span></td>
-              <td className="px-8 py-6">
-                <div className="flex items-center gap-2 bg-[#050914] px-3 py-2 rounded-xl border border-slate-800 w-fit">
-                   <AlertTriangle size={14} className="text-red-500"/>
-                   <span className="text-xs text-slate-300 font-bold">SOS緊急按鈕 (觸發)</span>
-                </div>
-              </td>
-              <td className="px-8 py-6">
-                <div className="flex gap-2">
-                   <div className="w-8 h-8 rounded-lg bg-blue-900/20 border border-blue-700/50 flex items-center justify-center text-blue-400"><Smartphone size={14}/></div>
-                   <div className="w-8 h-8 rounded-lg bg-blue-900/20 border border-blue-700/50 flex items-center justify-center text-blue-400"><Speaker size={14}/></div>
-                </div>
-              </td>
-              <td className="px-8 py-6">
-                <div className="w-12 h-6 bg-blue-600 rounded-full relative shadow-inner cursor-pointer">
-                  <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-md"></div>
-                </div>
-              </td>
-              <td className="px-8 py-6 text-right"><button className="p-2 text-slate-600 hover:text-white transition-colors"><MoreVertical size={18}/></button></td>
-            </tr>
+            {scenarios.map((scenario) => (
+              <tr key={scenario.id} className="group hover:bg-white/5 transition-all">
+                <td className="px-8 py-6">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-bold text-white">{scenario.name}</span>
+                    <span className="text-[10px] font-mono text-slate-600 font-black uppercase tracking-widest">ID: {scenario.id}</span>
+                  </div>
+                </td>
+                <td className="px-8 py-6">
+                  <span className="text-xs font-bold text-slate-400 block whitespace-nowrap">{scenario.siteLabel}</span>
+                  <span className="text-[10px] font-bold text-slate-600 block">{scenario.hostLabel} > {scenario.zoneLabel}</span>
+                </td>
+                <td className="px-8 py-6">
+                  <div className="flex items-center gap-2 bg-[#050914] px-3 py-2 rounded-xl border border-slate-800 w-fit">
+                    <Cpu size={14} className="text-orange-400"/>
+                    <span className="text-xs text-slate-300 font-bold whitespace-nowrap">{scenario.triggerDevice} ({scenario.triggerEvent})</span>
+                  </div>
+                </td>
+                <td className="px-8 py-6">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 text-blue-400 font-mono text-xs font-black">
+                      <Clock size={12}/> {scenario.armTime} ~ {scenario.disarmTime}
+                    </div>
+                    <div className="flex gap-0.5">
+                      {scenario.selectedDays.map(d => (
+                        <span key={d} className="w-4 h-4 rounded-sm bg-slate-800 text-[8px] font-black flex items-center justify-center text-slate-500">{d}</span>
+                      ))}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-8 py-6 text-center">
+                  {scenario.onlyDuringArmed ? (
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-600/10 border border-blue-500/30 rounded-lg text-blue-400" title="僅在保全設防時觸發">
+                      <Shield size={14}/>
+                      <span className="text-[10px] font-black uppercase tracking-tighter">ONLY ARMED</span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">無限制</span>
+                  )}
+                </td>
+                <td className="px-8 py-6">
+                  <div className="space-y-2">
+                    {/* Notify List */}
+                    <div className="flex flex-wrap gap-1.5">
+                      <div className="flex items-center gap-1.5 bg-blue-900/20 border border-blue-700/50 px-2 py-1 rounded text-blue-400">
+                        <Mail size={10}/>
+                        <span className="text-[10px] font-black uppercase">通知: {scenario.notifyRecipients.join(', ')}</span>
+                      </div>
+                    </div>
+                    {/* Devices List */}
+                    {scenario.linkedDevicesCount > 0 && (
+                      <div className="flex items-center gap-1.5 bg-purple-900/20 border border-purple-700/50 px-2 py-1 rounded text-purple-400 w-fit">
+                        <Video size={10}/>
+                        <span className="text-[10px] font-black uppercase">連動: {scenario.linkedDevicesCount} 設備</span>
+                      </div>
+                    )}
+                  </div>
+                </td>
+                {/* 狀態欄位：純顯示標籤，非 Switch */}
+                <td className="px-8 py-6">
+                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${scenario.isActive ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-slate-800 text-slate-500 border-slate-700'}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${scenario.isActive ? 'bg-green-500 animate-pulse' : 'bg-slate-600'}`}></div>
+                    {scenario.isActive ? '啟用中' : '已停用'}
+                  </div>
+                </td>
+                <td className="px-8 py-6 text-right relative">
+                  <button 
+                    onClick={() => setActiveMenuId(activeMenuId === scenario.id ? null : scenario.id)}
+                    className="p-2 text-slate-600 hover:text-white transition-colors bg-slate-800/40 rounded-xl border border-transparent hover:border-slate-700"
+                  >
+                    <MoreVertical size={18}/>
+                  </button>
+                  
+                  {activeMenuId === scenario.id && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setActiveMenuId(null)}></div>
+                      <div className="absolute right-12 top-1/2 -translate-y-1/2 w-48 bg-[#1e293b] border border-slate-700 rounded-2xl shadow-2xl z-20 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <button 
+                          onClick={() => toggleScenarioActive(scenario.id)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 text-sm font-bold text-slate-300 transition-colors"
+                        >
+                          <Power size={14} className={scenario.isActive ? 'text-orange-400' : 'text-green-400'}/>
+                          {scenario.isActive ? '停用情境' : '啟用情境'}
+                        </button>
+                        <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 text-sm font-bold text-slate-300 transition-colors border-t border-slate-700/50">
+                          <Pencil size={14} className="text-blue-400"/>
+                          編輯情境內容
+                        </button>
+                        <button 
+                          onClick={() => setDeleteConfirmId(scenario.id)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-900/20 text-sm font-bold text-red-400 transition-colors border-t border-slate-700/50"
+                        >
+                          <Trash2 size={14} className="text-red-500"/>
+                          刪除此規則
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -705,6 +822,24 @@ const EventManagementView: React.FC = () => {
             </p>
          </div>
       </div>
+
+      {/* 刪除確認彈窗 */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+           <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl p-10 max-w-sm w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
+              <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                 <AlertTriangle className="text-red-500" size={40} />
+              </div>
+              <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">確定刪除規則？</h2>
+              <p className="text-sm text-slate-500 mb-8">此操作將永久移除此項自訂情境連動規則，且無法復原。您確定要繼續嗎？</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                 <button onClick={() => deleteScenario(deleteConfirmId)} className="py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95">確認刪除</button>
+                 <button onClick={() => setDeleteConfirmId(null)} className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 transition-all active:scale-95">返回</button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
