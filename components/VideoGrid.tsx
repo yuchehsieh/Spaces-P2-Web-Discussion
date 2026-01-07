@@ -185,7 +185,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
-    // 環境偵測器卡片 (更新：優化佈局避免擋住警報音辨識，並將「無異常」改為「正常」)
+    // 環境偵測器卡片
     if (data.label === '環境偵測器') {
       const metrics = [
         { icon: <Thermometer size={isTiny ? 12 : 14}/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
@@ -442,8 +442,20 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                        <h4 className="text-sm font-black text-blue-500 uppercase tracking-widest">設備專屬觸發歷史</h4>
                        <div className="space-y-3">
                           {[
-                            { time: '17:05:22', event: detailModalSlot.label === '環境偵測器' ? '溫度超過閾值 (35.2°C)' : '偵測人員活動', status: '自動結案' },
-                            { time: '16:42:15', event: detailModalSlot.label === '環境偵測器' ? '濕度異常下降' : '偵測異常觸發', status: '管理員檢視' },
+                            { 
+                              time: '17:05:22', 
+                              event: detailModalSlot.label === '環境偵測器' ? '溫度超過閾值 (35.2°C)' : 
+                                     detailModalSlot.label === '多功能按鈕' ? '偵測按壓觸發' : 
+                                     detailModalSlot.label === '門磁' ? '偵測門磁觸發' : '偵測人員活動', 
+                              status: '自動結案' 
+                            },
+                            { 
+                              time: '16:42:15', 
+                              event: detailModalSlot.label === '環境偵測器' ? '濕度異常下降' : 
+                                     detailModalSlot.label === '多功能按鈕' ? '偵測按壓觸發' : 
+                                     detailModalSlot.label === '門磁' ? '偵測門磁觸發' : '偵測異常觸發', 
+                              status: '管理員檢視' 
+                            },
                             { time: '12:05:30', event: '系統手動自檢', status: '正常' }
                           ].map((log, i) => (
                             <div key={i} className="flex items-center justify-between p-6 bg-black/30 border border-slate-800 rounded-[1.8rem] hover:bg-white/5 transition-all group">
@@ -522,17 +534,35 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
                  {activeDetailTab === 'device_info' && (
                     <div className="grid grid-cols-2 gap-10 animate-in fade-in duration-500">
-                       <div className="bg-[#1e293b]/40 border border-slate-800 rounded-[2.5rem] p-8 space-y-8">
-                          <h4 className="text-sm font-black text-blue-500 uppercase tracking-widest border-b border-white/5 pb-4">硬體底層規格</h4>
-                          <div className="grid grid-cols-2 gap-y-8 gap-x-10">
-                             <InfoItem label="序列號 (S/N)" value="SKS-ENV-8841-B" />
-                             <InfoItem label="韌體版本" value="v2.4.8-LATEST" />
-                             <InfoItem label="通訊協定" value="Zigbee 3.0 / Matter" />
-                             <InfoItem label="連線時數" value="1,248 Hours" />
-                             <InfoItem label="剩餘電量" value="92% (CR123A)" />
-                             <InfoItem label="網路延遲" value="14ms" />
-                          </div>
+                       <div className="flex flex-col gap-8">
+                         <div className="bg-[#1e293b]/40 border border-slate-800 rounded-[2.5rem] p-8 space-y-8">
+                            <h4 className="text-sm font-black text-blue-500 uppercase tracking-widest border-b border-white/5 pb-4">硬體底層規格</h4>
+                            <div className="grid grid-cols-2 gap-y-8 gap-x-10">
+                               <InfoItem label="序列號 (S/N)" value="SKS-SEC-8841-B" />
+                               <InfoItem label="韌體版本" value="v2.4.8-LATEST" />
+                               <InfoItem label="通訊協定" value="Zigbee 3.0 / Matter" />
+                               <InfoItem label="連線時數" value="1,248 Hours" />
+                               <InfoItem label="剩餘電量" value="92% (CR123A)" />
+                               <InfoItem label="網路延遲" value="14ms" />
+                            </div>
+                         </div>
+                         
+                         {detailModalSlot.label === '多功能按鈕' && (
+                           <div className="bg-[#1e293b]/40 border border-slate-800 rounded-[2.5rem] p-8 space-y-6">
+                             <h4 className="text-sm font-black text-amber-500 uppercase tracking-widest border-b border-white/5 pb-4">圖示配置詳情</h4>
+                             <div className="flex items-center gap-6">
+                                <div className="w-16 h-16 bg-blue-600/10 border border-blue-500/30 rounded-2xl flex items-center justify-center text-blue-400 shadow-xl">
+                                   <Pill size={32} />
+                                </div>
+                                <div>
+                                   <span className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">當前圖示標籤</span>
+                                   <span className="text-lg font-black text-white italic">用藥提醒</span>
+                                </div>
+                             </div>
+                           </div>
+                         )}
                        </div>
+                       
                        <div className="flex flex-col items-center justify-center p-12 bg-slate-800/30 border border-dashed border-slate-700 rounded-[3rem] text-center gap-6">
                           <Cpu size={64} className="text-slate-600" />
                           <button onClick={() => { setDetailModalSlot(null); onJumpToNav?.('device-center'); }} className="px-10 py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 active:scale-95 shadow-xl">跳轉設備中心 <ExternalLink size={16}/></button>
