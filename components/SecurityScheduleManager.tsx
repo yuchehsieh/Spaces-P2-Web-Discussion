@@ -123,11 +123,31 @@ const SecurityScheduleManager: React.FC = () => {
                 <div className="grid grid-cols-2 gap-8">
                    <div className="space-y-2">
                       <label className="text-[10px] font-black text-green-500 uppercase tracking-widest block ml-1">自動設防時間</label>
-                      <input type="time" value={formData.armTime} onChange={e => setFormData({...formData, armTime: e.target.value})} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-4 px-5 text-2xl font-mono font-black text-white outline-none focus:border-green-500" />
+                      <div className="relative group/time cursor-pointer">
+                        <input 
+                          type="time" 
+                          value={formData.armTime} 
+                          onChange={e => setFormData({...formData, armTime: e.target.value})} 
+                          className="w-full bg-[#050914] border border-slate-700 rounded-xl py-4 px-5 pr-14 text-2xl font-mono font-black text-white outline-none focus:border-green-500 transition-all [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                        />
+                        <div className="absolute right-5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none">
+                          <Clock size={20} />
+                        </div>
+                      </div>
                    </div>
                    <div className="space-y-2">
                       <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest block ml-1">自動撤防時間</label>
-                      <input type="time" value={formData.disarmTime} onChange={e => setFormData({...formData, disarmTime: e.target.value})} className="w-full bg-[#050914] border border-slate-700 rounded-xl py-4 px-5 text-2xl font-mono font-black text-white outline-none focus:border-blue-500" />
+                      <div className="relative group/time cursor-pointer">
+                        <input 
+                          type="time" 
+                          value={formData.disarmTime} 
+                          onChange={e => setFormData({...formData, disarmTime: e.target.value})} 
+                          className="w-full bg-[#050914] border border-slate-700 rounded-xl py-4 px-5 pr-14 text-2xl font-mono font-black text-white outline-none focus:border-blue-500 transition-all [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                        />
+                        <div className="absolute right-5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none">
+                          <Clock size={20} />
+                        </div>
+                      </div>
                    </div>
                 </div>
                 <div className="space-y-4">

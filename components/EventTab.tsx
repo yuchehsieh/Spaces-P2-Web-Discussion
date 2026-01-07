@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Bell, 
@@ -203,7 +202,6 @@ const EventTab: React.FC<EventTabProps> = ({ initialSubTab = 'list' }) => {
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#050914] p-10">
         {activeSubNav === 'list' && !viewingEventId && (
           <div className="max-w-[1500px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500">
-             {/* 原始內容不變，如附件所呈現 */}
              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 mb-10 pb-8 border-b border-slate-800/50">
                 <div>
                    <h1 className="text-4xl font-black text-white tracking-tighter mb-2 italic">Event Logs <span className="text-blue-600">.</span></h1>
@@ -228,9 +226,31 @@ const EventTab: React.FC<EventTabProps> = ({ initialSubTab = 'list' }) => {
                    <div className="space-y-2 lg:col-span-2">
                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2 truncate"><Calendar size={12} className="text-blue-500"/> 時間區段 (含時分秒)</label>
                       <div className="flex items-center gap-2 min-w-0">
-                         <input type="datetime-local" step="1" value={startDateTime} onChange={e => setStartDateTime(e.target.value)} className="flex-1 bg-[#050914] border border-slate-700 rounded-xl py-2.5 px-3 text-[10px] text-slate-300 focus:border-blue-500 outline-none" />
+                         <div className="relative flex-1 group/time cursor-pointer">
+                            <input 
+                              type="datetime-local" 
+                              step="1" 
+                              value={startDateTime} 
+                              onChange={e => setStartDateTime(e.target.value)} 
+                              className="w-full bg-[#050914] border border-slate-700 rounded-xl py-2.5 px-3 pr-10 text-[10px] font-bold text-slate-300 focus:border-blue-500 outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none">
+                              <Calendar size={14} />
+                            </div>
+                         </div>
                          <span className="text-slate-700 font-black">~</span>
-                         <input type="datetime-local" step="1" value={endDateTime} onChange={e => setEndDateTime(e.target.value)} className="flex-1 bg-[#050914] border border-slate-700 rounded-xl py-2.5 px-3 text-[10px] text-slate-300 focus:border-blue-500 outline-none" />
+                         <div className="relative flex-1 group/time cursor-pointer">
+                            <input 
+                              type="datetime-local" 
+                              step="1" 
+                              value={endDateTime} 
+                              onChange={e => setEndDateTime(e.target.value)} 
+                              className="w-full bg-[#050914] border border-slate-700 rounded-xl py-2.5 px-3 pr-10 text-[10px] font-bold text-slate-300 focus:border-blue-500 outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none">
+                              <Calendar size={14} />
+                            </div>
+                         </div>
                       </div>
                    </div>
                    <div className="space-y-2 lg:col-span-1">
