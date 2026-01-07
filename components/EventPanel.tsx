@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { 
   Settings, 
   Shield, 
@@ -29,7 +29,11 @@ import {
   Forward,
   ChevronRight,
   User,
-  ClipboardList
+  ClipboardList,
+  Check,
+  Zap,
+  Video,
+  Thermometer
 } from 'lucide-react';
 import { SecurityEvent, SiteNode } from '../types';
 import { SITE_TREE_DATA } from '../constants';
@@ -61,8 +65,15 @@ const RECIPIENTS = [
 
 const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSiteId, selectedEventId, onEventSelect }) => {
   const [modalContent, setModalContent] = useState<ModalMetadata | null>(null);
-  const [isFilterActive, setIsFilterActive] = useState(false);
   
+  // 篩選相關狀態
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [isAutoSiteFilterEnabled, setIsAutoSiteFilterEnabled] = useState(true);
+  const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set(['video', 'security', 'env']));
+  
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+
   // 處置彈窗狀態
   const [handlingEvent, setHandlingEvent] = useState<SecurityEvent | null>(null);
   const [handleMode, setHandleMode] = useState<'claim' | 'forward' | null>(null);
@@ -71,14 +82,22 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
   const [forwardTarget, setForwardTarget] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 當 activeSiteId 改變時，自動啟用或調整篩選狀態
+  // 監聽外部點擊關閉篩選選單
   useEffect(() => {
-    if (activeSiteId) {
-      setIsFilterActive(true);
-    } else {
-      setIsFilterActive(false);
-    }
-  }, [activeSiteId]);
+    const handleClickOutside = (event: MouseEvent) => {
+      // 如果點擊的地點既不在選單內，也不在篩選按鈕上，才執行關閉
+      if (
+        filterMenuRef.current && 
+        !filterMenuRef.current.contains(event.target as Node) &&
+        filterButtonRef.current &&
+        !filterButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 設備映射表
   const deviceMap = useMemo(() => {
@@ -93,7 +112,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
     return map;
   }, []);
 
-  // 站點 ID 轉名稱映射 (用於過濾)
+  // 站點 ID 轉名稱映射
   const siteNameMap = useMemo(() => {
     const map: Record<string, string> = {};
     const traverse = (nodes: SiteNode[]) => {
@@ -106,10 +125,23 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
     return map;
   }, []);
 
+  // 判定事件類別
+  const getEventCategory = (event: SecurityEvent): string => {
+    const msg = event.message.toUpperCase();
+    if (event.type === 'vlm' || msg.includes('影像') || msg.includes('越界') || msg.includes('人形') || msg.includes('IPC')) return 'video';
+    if (msg.includes('SOS') || msg.includes('緊急') || msg.includes('門磁') || msg.includes('PIR') || msg.includes('設防')) return 'security';
+    if (msg.includes('溫度') || msg.includes('濕度') || msg.includes('亮度') || msg.includes('感測') || msg.includes('環境')) return 'env';
+    return 'security'; // 預設歸類為保全
+  };
+
   const filteredEvents = useMemo(() => {
     let result = events.filter(event => event.type === 'alert' || event.type === 'warning' || event.type === 'vlm');
     
-    if (isFilterActive && activeSiteId) {
+    // 類別過濾
+    result = result.filter(e => activeCategories.has(getEventCategory(e)));
+
+    // 據點過濾
+    if (isAutoSiteFilterEnabled && activeSiteId) {
       const siteLabel = siteNameMap[activeSiteId];
       if (siteLabel) {
         result = result.filter(e => 
@@ -120,13 +152,19 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
     }
     
     return result;
-  }, [events, isFilterActive, activeSiteId, siteNameMap]);
+  }, [events, isAutoSiteFilterEnabled, activeSiteId, siteNameMap, activeCategories]);
+
+  const isAnyFilterActive = activeCategories.size < 3 || (isAutoSiteFilterEnabled && !!activeSiteId);
+
+  const toggleCategory = (cat: string) => {
+    const next = new Set(activeCategories);
+    if (next.has(cat)) next.delete(cat); else next.add(cat);
+    setActiveCategories(next);
+  };
 
   const getCameraThumbnail = (id: string) => {
     let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    }
+    for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
     const index = Math.abs(hash) % 4 + 1;
     return `https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_${index}.jpg?raw=true`;
   };
@@ -141,23 +179,16 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
 
   const isFormValid = useMemo(() => {
     if (!handleMode) return false;
-    if (handleMode === 'claim') {
-      return claimResult !== null && handleNote.trim() !== '';
-    }
-    if (handleMode === 'forward') {
-      return forwardTarget !== null;
-    }
+    if (handleMode === 'claim') return claimResult !== null && handleNote.trim() !== '';
+    if (handleMode === 'forward') return forwardTarget !== null;
     return false;
   }, [handleMode, claimResult, handleNote, forwardTarget]);
 
   const submitHandle = () => {
     if (!isFormValid) return;
-
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      const actionText = handleMode === 'claim' ? '已成功認領並處理案件' : `案件已成功轉發給 ${RECIPIENTS.find(r => r.id === forwardTarget)?.name}`;
-      alert(actionText);
       setHandlingEvent(null);
     }, 1000);
   };
@@ -167,15 +198,43 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
         
       {/* Top Controls */}
       <div className="h-10 bg-[#162032] border-b border-slate-700 flex items-center justify-between px-2 shrink-0">
-         <div className="flex space-x-1">
+         <div className="flex space-x-1 relative">
              <button className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors" title="Settings"><Settings size={14} /></button>
              <button 
-               onClick={() => setIsFilterActive(!isFilterActive)}
-               className={`p-1.5 rounded transition-all ${isFilterActive ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`} 
-               title="Toggle Filter"
+               ref={filterButtonRef}
+               onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+               className={`p-1.5 rounded transition-all ${isAnyFilterActive ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.4)]' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`} 
+               title="篩選條件"
              >
                <SlidersHorizontal size={14} />
              </button>
+
+             {/* 篩選下拉選單 */}
+             {isFilterMenuOpen && (
+               <div ref={filterMenuRef} className="absolute top-8 left-0 w-56 bg-[#1e293b] border border-slate-700 rounded-xl shadow-2xl z-[1000] overflow-hidden animate-in zoom-in-95 duration-150">
+                  <div className="p-3 bg-black/20 border-b border-slate-700">
+                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">事件篩選設定</span>
+                  </div>
+                  <div className="p-2 space-y-1">
+                     <button 
+                        onClick={() => setIsAutoSiteFilterEnabled(!isAutoSiteFilterEnabled)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-800 rounded-lg transition-colors group"
+                     >
+                        <div className="flex items-center gap-3">
+                           <MapPin size={14} className={isAutoSiteFilterEnabled ? 'text-blue-400' : 'text-slate-600'} />
+                           <span className={`text-xs font-bold ${isAutoSiteFilterEnabled ? 'text-slate-200' : 'text-slate-500'}`}>自動據點篩選</span>
+                        </div>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isAutoSiteFilterEnabled ? 'bg-blue-600 border-blue-500' : 'border-slate-700'}`}>
+                           {isAutoSiteFilterEnabled && <Check size={10} strokeWidth={4} className="text-white" />}
+                        </div>
+                     </button>
+                     <div className="h-px bg-slate-800 my-1"></div>
+                     <FilterToggleItem icon={<Thermometer size={14}/>} label="環境異常" active={activeCategories.has('env')} onClick={() => toggleCategory('env')} />
+                     <FilterToggleItem icon={<Video size={14}/>} label="影像異常" active={activeCategories.has('video')} onClick={() => toggleCategory('video')} />
+                     <FilterToggleItem icon={<Shield size={14}/>} label="保全事件" active={activeCategories.has('security')} onClick={() => toggleCategory('security')} />
+                  </div>
+               </div>
+             )}
          </div>
          <div className="flex space-x-1">
             <button 
@@ -207,7 +266,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
           <div className="flex items-center justify-between">
               <div className="flex flex-col gap-0.5">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">安防觸發事件</span>
-                  {isFilterActive && activeSiteId && (
+                  {(isAutoSiteFilterEnabled && activeSiteId) && (
                       <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">據點過濾已開啟: {siteNameMap[activeSiteId]}</span>
                   )}
               </div>
@@ -239,7 +298,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                 ${isSelected ? 'ring-2 ring-blue-500 shadow-xl scale-[1.02] bg-[#2d3a54]' : ''}
               `}
             >
-              {/* Header Info Area */}
               <div className="p-3 pb-[52px] flex flex-col">
                 <div className="flex items-start space-x-3">
                    <div className={`mt-0.5 flex-shrink-0 rounded-xl p-2.5 transition-all ${
@@ -271,7 +329,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                    </div>
                 </div>
 
-                {/* VLM 事件核心資訊 */}
                 {isVlm && event.vlmData && (
                   <div className="mt-3 space-y-3 animate-in fade-in duration-300">
                      <div className="bg-[#1b2537] rounded-lg border border-slate-700/50 overflow-hidden shadow-inner">
@@ -349,7 +406,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                   </div>
                 )}
 
-                {/* 非 VLM 影像事件 */}
                 {!isVlm && hasVideo && (
                    <div className={`mt-3 space-y-3 animate-in zoom-in-95 duration-200 ${!isLineCrossing && !isSelected ? 'hidden' : 'block'}`}>
                       <div className="relative group/vid overflow-hidden rounded-lg border border-slate-700/50 aspect-video bg-black shadow-inner">
@@ -382,7 +438,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                 )}
               </div>
 
-              {/* 操作按鈕區 */}
               <div className={`absolute bottom-0 left-0 right-0 p-3 flex items-center justify-end space-x-2 bg-[#1e293b]/60 backdrop-blur-sm border-t border-slate-700/30 transition-all duration-300 translate-y-2 opacity-0
                 ${isSelected ? 'translate-y-0 opacity-100' : 'group-hover:translate-y-0 group-hover:opacity-100'}
               `}>
@@ -438,7 +493,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
               </div>
 
               <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
-                 {/* 模式選擇 */}
                  <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={() => setHandleMode('claim')}
@@ -462,7 +516,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                     </button>
                  </div>
 
-                 {/* 認領詳情 */}
                  {handleMode === 'claim' && (
                     <div className="space-y-6 animate-in slide-in-from-top-4 duration-300">
                        <div className="space-y-4">
@@ -512,7 +565,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                     </div>
                  )}
 
-                 {/* 轉發詳情 */}
                  {handleMode === 'forward' && (
                     <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
                        <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
@@ -542,7 +594,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                  )}
               </div>
 
-              {/* Footer: 僅在 handleMode 選取後顯示 */}
               {handleMode && (
                 <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end gap-5 animate-in slide-in-from-bottom-2">
                    <button 
@@ -571,12 +622,11 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
         </div>
       )}
 
-      {/* 放大彈窗 - 專業存證放大彈窗 */}
+      {/* 放大彈窗 */}
       {modalContent && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 sm:p-10 animate-in fade-in duration-300">
            <div className="relative max-w-7xl w-full bg-[#111827] border border-slate-800 rounded-2xl shadow-[0_0_120px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5">
               
-              {/* Header Section */}
               <div className="p-6 border-b border-slate-800/50 flex items-center justify-between bg-[#0f172a] shrink-0">
                  <div className="flex items-center gap-5">
                     <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20 shadow-inner">
@@ -609,7 +659,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
               </div>
               
               <div className="flex-1 flex overflow-hidden">
-                {/* Left Metadata Panel */}
                 <div className="w-72 bg-[#0b1121] border-r border-slate-800/50 p-6 flex flex-col gap-10 overflow-y-auto custom-scrollbar shrink-0">
                    
                    <div className="space-y-5">
@@ -659,88 +708,33 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                          </div>
                       </div>
                    </div>
-
-                   {modalContent.event.vlmData && (
-                     <div className="space-y-5 pt-2 border-t border-slate-800/50">
-                        <div className="flex items-center gap-3 text-slate-400">
-                           <Cpu size={18} className="text-orange-500" />
-                           <h4 className="text-[11px] font-black uppercase tracking-widest">AI 識標摘要</h4>
-                        </div>
-                        <div className="flex flex-wrap gap-2 px-1">
-                           <span className="px-3 py-1.5 bg-orange-900/20 text-orange-400 text-[10px] font-black rounded-lg border border-orange-500/30 uppercase tracking-widest">青年</span>
-                        </div>
-                     </div>
-                   )}
                 </div>
 
-                {/* Main Content Area */}
                 <div className="flex-1 bg-black flex flex-col relative group/viewer">
-                   
-                   {/* Viewer Overlays */}
                    <div className="absolute top-8 left-8 right-8 z-10 pointer-events-none flex justify-between items-start">
                       <div className="flex flex-col gap-3">
                          <div className="flex items-center gap-3 bg-red-600 px-5 py-2 rounded-lg text-[13px] font-black tracking-[0.25em] text-white shadow-2xl">
                             <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse"></div>
                             REPLAY
                          </div>
-                         <div className="text-[11px] text-white/40 font-mono tracking-tighter bg-black/50 px-4 py-1.5 rounded-lg border border-white/5 uppercase backdrop-blur-md">
-                            NODE_AUTH: PASS_SKS_EVIDENCE
-                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                          <div className="text-5xl font-mono font-black text-white tracking-widest drop-shadow-[0_4px_15px_rgba(0,0,0,1)]">
                             {modalContent.timestamp}<span className="text-2xl opacity-50 ml-1">.483</span>
                          </div>
-                         <div className="text-[11px] font-black text-white/40 tracking-[0.5em] uppercase mt-1">CAM_UTC+8_028</div>
                       </div>
                    </div>
 
-                   {/* Main Media */}
                    <div className="flex-1 relative flex items-center justify-center overflow-hidden">
                       <img src={modalContent.url} className={`max-w-full max-h-full object-contain shadow-[0_0_100px_rgba(37,99,235,0.1)] transition-opacity duration-700 ${modalContent.type === 'face' ? 'w-2/3 scale-110' : 'w-full'}`} />
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-500/5">
                          <PlayCircle size={100} className="text-white/20 hover:text-white/40 cursor-pointer transition-all drop-shadow-2xl" />
                       </div>
                    </div>
-
-                   {/* Bottom Overlays */}
-                   <div className="absolute bottom-24 left-8 right-8 z-10 pointer-events-none flex justify-between items-end">
-                      <div className="flex gap-10">
-                         <div className="flex flex-col">
-                            <span className="text-[10px] text-white/30 font-black uppercase tracking-[0.2em] mb-1">Longitude</span>
-                            <span className="text-base text-white/80 font-mono font-bold">121.5796° E</span>
-                         </div>
-                         <div className="flex flex-col">
-                            <span className="text-[10px] text-white/30 font-black uppercase tracking-[0.2em] mb-1">Latitude</span>
-                            <span className="text-base text-white/80 font-mono font-bold">25.0629° N</span>
-                         </div>
-                      </div>
-                      <div className="p-4 bg-black/50 backdrop-blur-xl border border-white/10 rounded-2xl hover:bg-white/10 transition-colors pointer-events-auto cursor-pointer">
-                         <Layers size={24} className="text-white/50" />
-                      </div>
-                   </div>
-
-                   {/* Playback Control Bar */}
-                   <div className="h-1 bg-white/10 mx-8 mb-12 relative group/progress cursor-pointer rounded-full overflow-hidden">
-                      <div className="absolute top-0 left-0 h-full bg-blue-600 w-1/4 shadow-[0_0_20px_rgba(37,99,235,0.8)]"></div>
-                      <div className="absolute top-0 left-1/4 h-full bg-blue-400/20 w-1/2"></div>
-                   </div>
                 </div>
               </div>
               
-              {/* Footer Section */}
-              <div className="p-8 border-t border-slate-800 flex justify-between items-center bg-[#0b1121] shrink-0">
-                 <div className="flex items-center gap-12 text-slate-500">
-                    <div className="flex items-center gap-3">
-                       <Activity size={20} className="text-green-500" />
-                       <span className="text-[11px] font-black uppercase tracking-widest">Bitrate: <span className="text-slate-300 font-bold ml-1">8.4 MBPS</span></span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <Shield size={20} className="text-blue-500" />
-                       <span className="text-[11px] font-black uppercase tracking-widest">Storage: <span className="text-slate-300 font-bold ml-1">SK-DATA-SEC-B</span></span>
-                    </div>
-                 </div>
-
+              <div className="p-8 border-t border-slate-800 flex justify-end items-center bg-[#0b1121] shrink-0">
                  <div className="flex gap-5">
                     <button className="px-10 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all font-black text-sm border border-slate-700 flex items-center justify-center gap-4 group shadow-xl uppercase tracking-widest">
                       <Download size={22} className="text-blue-400 group-hover:translate-y-0.5 transition-transform" /> 下載數位存證
@@ -756,6 +750,27 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
     </div>
   );
 };
+
+// --- 子組件: 篩選切換項 ---
+const FilterToggleItem: React.FC<{ 
+  icon: React.ReactNode; 
+  label: string; 
+  active: boolean; 
+  onClick: () => void 
+}> = ({ icon, label, active, onClick }) => (
+  <button 
+    onClick={onClick}
+    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-800 rounded-lg transition-colors group"
+  >
+    <div className="flex items-center gap-3">
+       <div className={`${active ? 'text-blue-400' : 'text-slate-600'} transition-colors`}>{icon}</div>
+       <span className={`text-xs font-bold ${active ? 'text-slate-200' : 'text-slate-500'}`}>{label}</span>
+    </div>
+    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${active ? 'bg-blue-600 border-blue-500' : 'border-slate-700'}`}>
+       {active && <Check size={10} strokeWidth={4} className="text-white" />}
+    </div>
+  </button>
+);
 
 // 用於處置中旋轉的圖示
 const RefreshCw = ({ size, className }: { size: number, className?: string }) => (
