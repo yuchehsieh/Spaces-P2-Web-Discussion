@@ -54,6 +54,7 @@ interface VideoGridProps {
   activeSlots: Record<number, VideoSlotData>;
   onDropCamera: (index: number, camera: { id: string; label: string; deviceType?: string; nodeType?: string; siteGroup?: string; siteName?: string }) => void;
   onRemoveCamera: (index: number) => void;
+  onMoveCamera?: (fromIndex: number, toIndex: number) => void; // 新增：宮格移動回呼
   onToggleRecording: (index: number) => void;
   onJumpToNav?: (nav: MainNavType, nodeId?: string) => void;
 }
@@ -70,6 +71,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   activeSlots, 
   onDropCamera, 
   onRemoveCamera,
+  onMoveCamera,
   onToggleRecording,
   onJumpToNav
 }) => {
@@ -95,20 +97,36 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent, index: number) => {
-    e.preventDefault(); setDragOverIndex(null);
+    e.preventDefault(); 
+    setDragOverIndex(null);
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'));
       if (data.type === 'device') {
-        onDropCamera(index, { 
-          id: data.id, 
-          label: data.label, 
-          deviceType: data.deviceType, 
-          nodeType: data.nodeType,
-          siteGroup: data.siteGroup, 
-          siteName: data.siteName 
-        });
+        // 如果帶有 sourceSlotIndex，代表是宮格間的移動
+        if (data.sourceSlotIndex !== undefined) {
+          onMoveCamera?.(data.sourceSlotIndex, index);
+        } else {
+          // 從 SiteTree 拖入
+          onDropCamera(index, { 
+            id: data.id, 
+            label: data.label, 
+            deviceType: data.deviceType, 
+            nodeType: data.nodeType,
+            siteGroup: data.siteGroup, 
+            siteName: data.siteName 
+          });
+        }
       }
     } catch (err) { console.error('Invalid drop data', err); }
+  };
+
+  const handleDragStartFromSlot = (e: React.DragEvent, index: number, slotData: VideoSlotData) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      ...slotData,
+      type: 'device',
+      sourceSlotIndex: index
+    }));
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const availableTabs = useMemo(() => {
@@ -130,7 +148,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       specializedTabs.push({ id: 'history_trend', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
       specializedTabs.push({ id: 'trigger_logs', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
     }
-    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕', 'SOS按鈕'].includes(label)) {
+    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(label)) {
       specializedTabs.push({ id: 'trigger_logs', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
     }
 
@@ -147,7 +165,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     const spec = [];
     if (label === '空間偵測器') spec.push({ id: 'coordinate_plot' }, { id: 'history_trend' });
     else if (label === '環境偵測器') spec.push({ id: 'history_trend' }, { id: 'trigger_logs' });
-    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕', 'SOS按鈕'].includes(label)) spec.push({ id: 'trigger_logs' });
+    else if (['門磁', 'PIR', '多功能按鈕', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(label)) spec.push({ id: 'trigger_logs' });
     return [...spec, { id: 'security_info' }, { id: 'scenario_info' }, { id: 'device_info' }];
   };
 
@@ -272,7 +290,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                   {data.label}
                 </h4>
               )}
-              <div className={`px-4 py-1 rounded-full text-[10px] font-black tracking-[0.2em] border ${isTriggered ? 'bg-red-600 text-white border-red-400' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+              <div className={`px-4 py-1 rounded-full text-[10px] font-black tracking-[0.2em] border ${isTriggered ? 'bg-red-600 text-white border-green-400' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
                  {isTriggered ? 'TRIGGERED' : 'NORMAL'}
               </div>
            </div>
@@ -304,7 +322,12 @@ const VideoGrid: React.FC<VideoGridProps> = ({
             onDrop={(e) => handleDrop(e, index)}
           >
             {slotData ? (
-              <div className="relative w-full h-full cursor-pointer" onClick={() => onToggleRecording(index)}>
+              <div 
+                className="relative w-full h-full cursor-pointer" 
+                onClick={() => onToggleRecording(index)}
+                draggable
+                onDragStart={(e) => handleDragStartFromSlot(e, index, slotData)}
+              >
                 {slotData.deviceType === 'camera' ? (
                   <>
                     <img src={getCameraImage(slotData.id)} alt="Camera Feed" className="w-full h-full object-cover pointer-events-none" />
@@ -317,7 +340,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                     <button onClick={(e) => { e.stopPropagation(); openModal(slotData); }} className="w-7 h-7 flex items-center justify-center bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg shadow-xl"><Info size={16} strokeWidth={3} /></button>
                 </div>
                 
-                {/* 底部位置標籤區 (更新：放大字體，對齊 Sensor Label) */}
+                {/* 底部位置標籤區 */}
                 <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 pointer-events-none z-10">
                    {(slotData.siteGroup || slotData.siteName) && (
                      <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-400 uppercase tracking-widest bg-black/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/10 w-fit shadow-2xl">
@@ -445,14 +468,14 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                             { 
                               time: '17:05:22', 
                               event: detailModalSlot.label === '環境偵測器' ? '溫度超過閾值 (35.2°C)' : 
-                                     detailModalSlot.label === '多功能按鈕' ? '偵測按壓觸發' : 
+                                     ['多功能按鈕', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(detailModalSlot.label) ? '偵測按壓觸發' : 
                                      detailModalSlot.label === '門磁' ? '偵測門磁觸發' : '偵測人員活動', 
                               status: '自動結案' 
                             },
                             { 
                               time: '16:42:15', 
                               event: detailModalSlot.label === '環境偵測器' ? '濕度異常下降' : 
-                                     detailModalSlot.label === '多功能按鈕' ? '偵測按壓觸發' : 
+                                     ['多功能按鈕', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(detailModalSlot.label) ? '偵測按壓觸發' : 
                                      detailModalSlot.label === '門磁' ? '偵測門磁觸發' : '偵測異常觸發', 
                               status: '管理員檢視' 
                             },

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronDown, 
@@ -51,6 +50,7 @@ interface ExecutionReport {
   action: 'arm' | 'disarm';
   successCount: number;
   failureCount: number;
+  successes: { zoneLabel: string; deviceCount: number }[];
   failures: { zoneLabel: string; reasons: string[] }[];
 }
 
@@ -127,12 +127,11 @@ const SiteSection: React.FC<{
   site: SiteNode;
   deviceStatuses: Record<string, DeviceStatus>;
   zoneArmState: ZoneArmState;
-  handleArmClick: (zoneId: string, label: string) => void;
+  handleArmClick: (zone: SiteNode) => void;
   handleGlobalArmClick: (site: SiteNode) => void;
   handleGlobalDisarmClick: (site: SiteNode) => void;
   onGoToSchedules: () => void;
 }> = ({ site, deviceStatuses, zoneArmState, handleArmClick, handleGlobalArmClick, handleGlobalDisarmClick, onGoToSchedules }) => {
-  // 每個面板預設皆為展開 (true)
   const [isSiteExpanded, setIsSiteExpanded] = useState(true);
   const [isScheduleExpanded, setIsScheduleExpanded] = useState(true);
   const [isControlExpanded, setIsControlExpanded] = useState(true);
@@ -165,7 +164,6 @@ const SiteSection: React.FC<{
 
   return (
     <div className="bg-slate-900/20 border border-slate-800 rounded-2xl overflow-hidden mb-8 shadow-lg">
-      {/* Site Header */}
       <div 
         onClick={() => setIsSiteExpanded(!isSiteExpanded)}
         className="px-6 py-4 bg-[#111827] flex items-center justify-between cursor-pointer hover:bg-slate-800 transition-colors border-b border-slate-800/50"
@@ -198,7 +196,6 @@ const SiteSection: React.FC<{
       {isSiteExpanded && (
         <div className="p-6 space-y-10 bg-[#050914]/50 animate-in fade-in duration-300">
           
-          {/* 1. 今日保全自動化摘要 (置頂) */}
           <div className="space-y-4">
             <div onClick={() => setIsScheduleExpanded(!isScheduleExpanded)} className="flex items-center justify-between cursor-pointer group">
               <h3 className="text-slate-400 font-black text-sm uppercase tracking-widest flex items-center gap-3 group-hover:text-blue-400 transition-colors"><CalendarClock size={20} className="text-blue-500" /> 今日保全自動化摘要</h3>
@@ -236,7 +233,6 @@ const SiteSection: React.FC<{
             )}
           </div>
 
-          {/* 2. 保全分區控管 (居中) */}
           <div className="space-y-6 pt-4 border-t border-slate-800/50">
             <div onClick={() => setIsControlExpanded(!isControlExpanded)} className="flex items-center justify-between cursor-pointer group">
               <h3 className="text-white font-black text-sm uppercase tracking-widest flex items-center gap-3 group-hover:text-green-400 transition-colors"><Shield size={20} className="text-green-500" /> 保全分區控管</h3>
@@ -249,7 +245,7 @@ const SiteSection: React.FC<{
                     return (
                       <div 
                         key={z.node.id} 
-                        onClick={() => handleArmClick(z.node.id, z.node.label)} 
+                        onClick={() => handleArmClick(z.node)} 
                         className={`relative h-28 rounded-2xl border transition-all cursor-pointer flex flex-col items-center justify-center shadow-lg ${isArmed ? 'bg-gradient-to-br from-green-900/40 to-emerald-900/10 border-green-700/50 ring-1 ring-green-500/20' : 'bg-[#111827] border-slate-800 hover:border-slate-600'}`}
                       >
                         <div className={`mb-2 transition-transform duration-500 ${isArmed ? 'text-green-400 scale-110' : 'text-slate-600'}`}>{isArmed ? <Shield size={28} strokeWidth={2.5}/> : <Unlock size={28} strokeWidth={2.5}/>}</div>
@@ -262,7 +258,6 @@ const SiteSection: React.FC<{
             )}
           </div>
 
-          {/* 3. 設備狀態儀表板 (置底) */}
           <div className="space-y-6 pt-4 border-t border-slate-800/50">
             <div className="flex items-center justify-between">
               <div onClick={() => setIsDashboardExpanded(!isDashboardExpanded)} className="flex items-center gap-3 cursor-pointer group">
@@ -316,8 +311,13 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
   const [zoneArmState, setZoneArmState] = useState<ZoneArmState>({});
   const [deviceStatuses, setDeviceStatuses] = useState<Record<string, DeviceStatus>>({});
   
-  // 彈窗狀態
-  const [armConfirmConfig, setArmConfirmConfig] = useState<{isOpen: boolean, site: SiteNode | null, action: 'arm' | 'disarm' | null, zoneId?: string, zoneLabel?: string}>({ isOpen: false, site: null, action: null });
+  const [armConfirmConfig, setArmConfirmConfig] = useState<{
+    isOpen: boolean, 
+    site: SiteNode | null, 
+    action: 'arm' | 'disarm' | null, 
+    zone?: SiteNode
+  }>({ isOpen: false, site: null, action: null });
+  
   const [report, setReport] = useState<ExecutionReport | null>(null);
 
   useEffect(() => { setDeviceStatuses(generateMockDeviceStatus(SITE_TREE_DATA)); }, []);
@@ -329,53 +329,78 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
     return sites;
   }, []);
 
-  // 處理確認後的執行動作
-  const executeGlobalAction = () => {
-    const { site, action, zoneId } = armConfirmConfig;
-    if (!site && !zoneId) return;
-
-    let success = 0;
-    let failure = 0;
-    const failures: { zoneLabel: string; reasons: string[] }[] = [];
-
-    // 單區處置邏輯 (維持原有成功邏輯)
-    if (zoneId) {
-        setZoneArmState(prev => ({...prev, [zoneId]: action === 'arm' ? 'armed' : 'disarmed'}));
-        setArmConfirmConfig({ isOpen: false, site: null, action: null });
-        return;
+  // 統一判定邏輯：定義哪些區域在設防時會失敗 (中山、大甲的特定分區)
+  const checkZoneEligibility = (zoneId: string, zoneLabel: string): { success: boolean, reasons: string[] } => {
+    // 模擬：中山處與大甲處的「倉庫」及「部長室」會失敗
+    const isProblematic = zoneLabel.includes('倉庫') || zoneLabel.includes('部長室');
+    if (isProblematic) {
+      return {
+        success: false,
+        reasons: zoneLabel.includes('倉庫') 
+          ? ['區域內有門窗未緊閉', '感測迴路異常'] 
+          : ['門磁 處於開啟狀態']
+      };
     }
+    return { success: true, reasons: [] };
+  };
 
-    // 全區處置邏輯 (模擬失敗)
-    const zonesToUpdate: string[] = [];
-    const traverse = (n: SiteNode) => {
-      if (n.type === 'zone') zonesToUpdate.push(n.id);
-      n.children?.forEach(traverse);
-    };
-    if (site) traverse(site);
-
-    // 模擬失敗情境：新光保全-中山處 與 新光保全-大甲處
-    if (site?.label.includes('中山處') || site?.label.includes('大甲處')) {
-        failure = 2;
-        success = zonesToUpdate.length - failure;
-        failures.push({ zoneLabel: '倉庫 (分區1)', reasons: ['區域內有門窗未緊閉', '感測迴路異常'] });
-        failures.push({ zoneLabel: '部長室 (分區2)', reasons: ['門磁 處於開啟狀態'] });
+  const handleArmToggle = (zone: SiteNode) => {
+    const isCurrentlyArmed = zoneArmState[zone.id] === 'armed';
+    if (isCurrentlyArmed) {
+      // 若已設防 -> 直接切換為撤防 (解除保全通常不跳報告，或可視需求增加)
+      setZoneArmState(prev => ({ ...prev, [zone.id]: 'disarmed' }));
     } else {
-        success = zonesToUpdate.length;
-        setZoneArmState(prev => {
-            const next = { ...prev };
-            zonesToUpdate.forEach(id => { next[id] = action === 'arm' ? 'armed' : 'disarmed'; });
-            return next;
-        });
+      // 若未設防 -> 跳出確認視窗，確認後顯示執行報告
+      setArmConfirmConfig({ isOpen: true, site: null, action: 'arm', zone: zone });
+    }
+  };
+
+  const executeAction = () => {
+    const { site, action, zone } = armConfirmConfig;
+    setArmConfirmConfig({ isOpen: false, site: null, action: null });
+
+    const failures: ExecutionReport['failures'] = [];
+    const successes: ExecutionReport['successes'] = [];
+
+    // 確定要處理的 Zone 清單
+    const targets: SiteNode[] = [];
+    if (zone) {
+      targets.push(zone);
+    } else if (site) {
+      const traverse = (n: SiteNode) => {
+        if (n.type === 'zone') targets.push(n);
+        n.children?.forEach(traverse);
+      };
+      traverse(site);
     }
 
-    setArmConfirmConfig({ isOpen: false, site: null, action: null });
+    if (action === 'arm') {
+      targets.forEach(t => {
+        const check = checkZoneEligibility(t.id, t.label);
+        if (check.success) {
+          const deviceCount = t.children?.filter(c => c.type === 'device').length || 0;
+          successes.push({ zoneLabel: t.label, deviceCount });
+          setZoneArmState(prev => ({ ...prev, [t.id]: 'armed' }));
+        } else {
+          failures.push({ zoneLabel: t.label, reasons: check.reasons });
+        }
+      });
+    } else {
+      // 撤防邏輯 (全區撤防)
+      targets.forEach(t => {
+        successes.push({ zoneLabel: t.label, deviceCount: t.children?.filter(c => c.type === 'device').length || 0 });
+        setZoneArmState(prev => ({ ...prev, [t.id]: 'disarmed' }));
+      });
+    }
+
     setReport({
-        isOpen: true,
-        siteLabel: site?.label || '',
-        action: action!,
-        successCount: success,
-        failureCount: failure,
-        failures
+      isOpen: true,
+      siteLabel: site?.label || zone?.label || '自訂分區',
+      action: action!,
+      successCount: successes.length,
+      failureCount: failures.length,
+      successes,
+      failures
     });
   };
 
@@ -393,7 +418,7 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
             site={site} 
             deviceStatuses={deviceStatuses} 
             zoneArmState={zoneArmState} 
-            handleArmClick={(id, lbl) => setArmConfirmConfig({ isOpen: true, site: null, action: 'arm', zoneId: id, zoneLabel: lbl })} 
+            handleArmClick={handleArmToggle} 
             handleGlobalArmClick={(s) => setArmConfirmConfig({ isOpen: true, site: s, action: 'arm' })} 
             handleGlobalDisarmClick={(s) => setArmConfirmConfig({ isOpen: true, site: s, action: 'disarm' })}
             onGoToSchedules={() => onJumpToNav?.('event-center')}
@@ -401,7 +426,6 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
         ))}
       </div>
 
-      {/* 第一步：確認彈窗 */}
       {armConfirmConfig.isOpen && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
            <div className="bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl p-10 max-w-sm w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
@@ -409,21 +433,20 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
                  <Shield className="text-blue-500" size={40} />
               </div>
               <h2 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">安防確認</h2>
-              <p className="text-sm text-slate-500 mb-8">您確定要對「{armConfirmConfig.site?.label || armConfirmConfig.zoneLabel}」<br/>執行 {armConfirmConfig.action === 'arm' ? '設防' : '撤防'} 操作嗎？</p>
+              <p className="text-sm text-slate-500 mb-8">您確定要對「{armConfirmConfig.site?.label || armConfirmConfig.zone?.label}」<br/>執行 {armConfirmConfig.action === 'arm' ? '設防' : '撤防'} 操作嗎？</p>
               
               <div className="grid grid-cols-2 gap-4">
-                 <button onClick={executeGlobalAction} className="py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95">確認執行</button>
+                 <button onClick={executeAction} className="py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95">確認執行</button>
                  <button onClick={() => setArmConfirmConfig({ isOpen: false, site: null, action: null })} className="py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 transition-all active:scale-95">返回</button>
               </div>
            </div>
         </div>
       )}
 
-      {/* 第二步：執行報告 (如附件圖) */}
       {report?.isOpen && (
         <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
-           <div className="bg-[#1b2333] border border-slate-800 rounded-[1.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 ring-1 ring-white/5">
-              <div className="p-6 flex items-center justify-between border-b border-white/5">
+           <div className="bg-[#1b2333] border border-slate-800 rounded-[1.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 ring-1 ring-white/5 flex flex-col max-h-[90vh]">
+              <div className="p-6 flex items-center justify-between border-b border-white/5 shrink-0">
                  <div className="flex items-center gap-3">
                     <Shield className="text-blue-400" size={24}/>
                     <h2 className="text-xl font-bold text-slate-100">執行設防報告</h2>
@@ -431,35 +454,54 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
                  <button onClick={() => setReport(null)} className="text-slate-500 hover:text-white transition-colors"><X size={20}/></button>
               </div>
 
-              <div className="p-6 space-y-6">
-                 {/* Success / Failure Boxes */}
+              <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-[#142826] border border-emerald-900/50 rounded-lg p-5 flex flex-col items-center">
+                    <div className="bg-[#142826] border border-emerald-900/50 rounded-lg p-5 flex flex-col items-center shadow-inner">
                        <span className="text-4xl font-black text-emerald-500 mb-1">{report.successCount}</span>
                        <span className="text-[10px] font-black tracking-widest text-emerald-600 uppercase">SUCCESS</span>
                     </div>
-                    <div className="bg-[#2a1a1c] border border-red-900/50 rounded-lg p-5 flex flex-col items-center">
+                    <div className="bg-[#2a1a1c] border border-red-900/50 rounded-lg p-5 flex flex-col items-center shadow-inner">
                        <span className="text-4xl font-black text-red-500 mb-1">{report.failureCount}</span>
                        <span className="text-[10px] font-black tracking-widest text-red-600 uppercase">FAILURE</span>
                     </div>
                  </div>
+
+                 {/* Success List */}
+                 {report.successCount > 0 && (
+                    <div className="bg-[#111827] rounded-xl p-5 border border-white/5 space-y-4">
+                       <div className="flex items-center gap-2 text-emerald-400">
+                          <CheckCircle2 size={14}/>
+                          <span className="text-xs font-bold uppercase tracking-widest">成功設防區域</span>
+                       </div>
+                       <div className="space-y-3">
+                          {report.successes.map((succ, i) => (
+                             <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5 transition-all hover:bg-white/10">
+                                <span className="text-sm font-bold text-slate-100">{succ.zoneLabel}</span>
+                                <div className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                   {succ.deviceCount} 個設備自檢正常
+                                </div>
+                             </div>
+                          ))}
+                       </div>
+                    </div>
+                 )}
 
                  {/* Error List */}
                  {report.failureCount > 0 && (
                     <div className="bg-[#111827] rounded-xl p-5 border border-white/5 space-y-4">
                        <div className="flex items-center gap-2 text-red-400">
                           <AlertTriangle size={14}/>
-                          <span className="text-xs font-bold">異常詳情列表</span>
+                          <span className="text-xs font-bold uppercase tracking-widest">異常詳情列表</span>
                        </div>
                        <div className="space-y-3">
                           {report.failures.map((fail, i) => (
                              <div key={i} className="flex gap-3 relative">
                                 <div className="w-1 bg-red-500 rounded-full shrink-0"></div>
-                                <div className="flex flex-col gap-1">
+                                <div className="flex flex-col gap-1 w-full">
                                    <h4 className="text-sm font-bold text-slate-100">{fail.zoneLabel}</h4>
                                    <ul className="space-y-1">
                                       {fail.reasons.map((r, ri) => (
-                                        <li key={ri} className="text-[11px] text-red-400 flex items-center gap-2 font-medium">
+                                        <li key={ri} className="text-[11px] text-red-400 flex items-center gap-2 font-medium bg-red-500/5 p-1 rounded">
                                            <div className="w-1 h-1 rounded-full bg-red-500"></div>
                                            {r}
                                         </li>
@@ -471,7 +513,8 @@ const SecurityTab: React.FC<{ onJumpToNav?: (nav: any) => void }> = ({ onJumpToN
                        </div>
                     </div>
                  )}
-
+              </div>
+              <div className="p-6 bg-black/20 border-t border-white/5 shrink-0">
                  <button onClick={() => setReport(null)} className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-xl shadow-blue-900/20 active:scale-95 transition-all">確認回報</button>
               </div>
            </div>

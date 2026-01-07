@@ -102,6 +102,26 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleMoveCamera = (fromIndex: number, toIndex: number) => {
+    setVideoSlots(prev => {
+      const next = { ...prev };
+      const sourceData = next[fromIndex];
+      const targetData = next[toIndex];
+      
+      if (sourceData) {
+        next[toIndex] = sourceData;
+        if (targetData) {
+          // 交換位置
+          next[fromIndex] = targetData;
+        } else {
+          // 移動到空白處
+          delete next[fromIndex];
+        }
+      }
+      return next;
+    });
+  };
+
   const handleRemoveCamera = (index: number) => {
     setVideoSlots(prev => {
       const newState = { ...prev };
@@ -222,6 +242,7 @@ const App: React.FC = () => {
                         gridSize={gridSize} 
                         activeSlots={videoSlots}
                         onDropCamera={handleDropCamera}
+                        onMoveCamera={handleMoveCamera}
                         onRemoveCamera={handleRemoveCamera}
                         onToggleRecording={handleToggleRecording}
                         onJumpToNav={handleJumpToNav}
