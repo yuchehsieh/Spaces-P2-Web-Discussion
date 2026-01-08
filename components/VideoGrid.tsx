@@ -203,36 +203,43 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
-    // 環境偵測器卡片
+    // 環境偵測器卡片 - 依照使用者要求更新內容
     if (data.label === '環境偵測器') {
       const metrics = [
         { icon: <Thermometer size={isTiny ? 12 : 14}/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
         { icon: <Droplets size={isTiny ? 12 : 14}/>, label: "濕度", value: "55", unit: "%", color: "text-blue-400" },
         { icon: <Sun size={isTiny ? 12 : 14}/>, label: "光照", value: "420", unit: "lux", color: "text-yellow-400" },
-        { icon: <Waves size={isTiny ? 12 : 14}/>, label: "水浸", value: "正常", color: "text-emerald-400", isStatus: true },
+        { icon: <Waves size={isTiny ? 12 : 14}/>, label: "水浸(正)", value: "正常", color: "text-emerald-400", isStatus: true },
+        { icon: <Waves size={isTiny ? 12 : 14}/>, label: "水浸(背)", value: "正常", color: "text-emerald-400", isStatus: true },
+        { icon: <Zap size={isTiny ? 12 : 14}/>, label: "外接：溫度", value: "26.1", unit: "°C", color: "text-blue-400" },
         { icon: <Mic size={isTiny ? 12 : 14}/>, label: "警報音辨識", value: "正常", color: "text-emerald-400", isStatus: true }
       ];
+
       return (
-        <div className={`flex flex-col h-full w-full bg-[#0a0f1e] ${isSmall ? 'p-3' : 'p-5'} pb-16`}>
+        <div className={`flex flex-col h-full w-full bg-[#0a0f1e] ${isSmall ? 'p-2' : 'p-4'} pb-16`}>
           {!isTiny && (
-            <div className={`flex items-center gap-2 ${isSmall ? 'mb-2' : 'mb-4'} border-b border-white/5 pb-2`}>
-               <div className={`${isSmall ? 'p-1.5' : 'p-2'} bg-cyan-500/10 text-cyan-400 rounded-lg`}><Thermometer size={isSmall ? 16 : 20}/></div>
-               <span className={`${isSmall ? 'text-xs' : 'text-base'} font-black text-white italic`}>環境偵測器</span>
+            <div className={`flex items-center gap-2 ${isSmall ? 'mb-1.5' : 'mb-3'} border-b border-white/5 pb-1.5`}>
+               <div className={`${isSmall ? 'p-1' : 'p-2'} bg-cyan-500/10 text-cyan-400 rounded-lg`}><Thermometer size={isSmall ? 14 : 18}/></div>
+               <span className={`${isSmall ? 'text-[10px]' : 'text-sm'} font-black text-white italic`}>環境偵測器</span>
             </div>
           )}
-          <div className={`grid ${isSmall ? 'grid-cols-1' : 'grid-cols-2'} gap-2 flex-1 overflow-hidden`}>
-             {metrics.map((m, idx) => (
-               <div key={idx} className={`bg-white/5 border border-white/5 rounded-xl ${isSmall ? 'px-3 py-1 flex items-center justify-between' : 'p-3 flex flex-col justify-between'} hover:bg-white/10 transition-colors ${idx === 4 && !isSmall ? 'col-span-2 flex-row items-center' : ''}`}>
-                  <div className="flex items-center gap-2">
-                    <div className={m.color}>{m.icon}</div>
-                    <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">{m.label}</span>
-                  </div>
-                  <div className={`flex items-baseline gap-1 ${isSmall ? '' : idx === 4 ? 'ml-auto' : 'mt-1'}`}>
-                    <span className={`${isSmall ? 'text-[10px]' : idx === 4 ? 'text-lg' : 'text-xl'} font-black font-mono tracking-tighter ${m.color}`}>{m.value}</span>
-                    {m.unit && <span className="text-[8px] font-bold text-slate-600 uppercase">{m.unit}</span>}
-                  </div>
-               </div>
-             ))}
+          <div className={`grid ${isSmall ? 'grid-cols-1' : 'grid-cols-2'} gap-1.5 flex-1 overflow-y-auto no-scrollbar`}>
+             {metrics.map((m, idx) => {
+               // 判斷是否為外接孔或最後一項，使其在宮格較大時顯眼一點
+               const isSpecial = idx === 5 || idx === 6;
+               return (
+                 <div key={idx} className={`bg-white/5 border border-white/5 rounded-xl ${isSmall ? 'px-2 py-1 flex items-center justify-between' : 'p-2.5 flex flex-col justify-between'} hover:bg-white/10 transition-colors ${!isSmall && isSpecial ? 'col-span-1' : ''}`}>
+                    <div className="flex items-center gap-1.5">
+                      <div className={m.color}>{m.icon}</div>
+                      <span className="text-[9px] font-bold text-slate-500 whitespace-nowrap leading-none uppercase tracking-tighter">{m.label}</span>
+                    </div>
+                    <div className={`flex items-baseline gap-1 ${isSmall ? '' : 'mt-1'}`}>
+                      <span className={`${isSmall ? 'text-[10px]' : 'text-base'} font-black font-mono tracking-tighter ${m.color}`}>{m.value}</span>
+                      {m.unit && <span className="text-[7px] font-black text-slate-600 uppercase">{m.unit}</span>}
+                    </div>
+                 </div>
+               );
+             })}
           </div>
         </div>
       );
@@ -376,7 +383,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                           {(detailModalSlot.siteGroup || detailModalSlot.siteName) && (
                             <>
                                <div className="w-1 h-1 bg-slate-700 rounded-full"></div>
-                               <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                               <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-400 uppercase tracking-widest">
                                   <MapPin size={10} /> {detailModalSlot.siteGroup} > {detailModalSlot.siteName}
                                </div>
                             </>
