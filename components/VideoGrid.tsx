@@ -36,7 +36,8 @@ import {
   Clock,
   LayoutGrid,
   ArrowRight,
-  Server
+  Server,
+  Plug2
 } from 'lucide-react';
 
 export interface VideoSlotData {
@@ -203,7 +204,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
-    // 環境偵測器卡片 - 依照使用者要求更新內容
+    // 環境偵測器卡片 - 更新外接插頭圖示
     if (data.label === '環境偵測器') {
       const metrics = [
         { icon: <Thermometer size={isTiny ? 12 : 14}/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
@@ -211,7 +212,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
         { icon: <Sun size={isTiny ? 12 : 14}/>, label: "光照", value: "420", unit: "lux", color: "text-yellow-400" },
         { icon: <Waves size={isTiny ? 12 : 14}/>, label: "水浸(正)", value: "正常", color: "text-emerald-400", isStatus: true },
         { icon: <Waves size={isTiny ? 12 : 14}/>, label: "水浸(背)", value: "正常", color: "text-emerald-400", isStatus: true },
-        { icon: <Zap size={isTiny ? 12 : 14}/>, label: "外接：溫度", value: "26.1", unit: "°C", color: "text-blue-400" },
+        { icon: <Plug2 size={isTiny ? 12 : 14}/>, label: "外接：溫度", value: "26.1", unit: "°C", color: "text-blue-400" },
         { icon: <Mic size={isTiny ? 12 : 14}/>, label: "警報音辨識", value: "正常", color: "text-emerald-400", isStatus: true }
       ];
 
