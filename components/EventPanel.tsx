@@ -335,7 +335,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                         <div className="p-2 border-b border-slate-700/50 flex items-center justify-between bg-black/20">
                            <div className="flex items-center gap-2 text-[11px] text-slate-300 font-bold">
                               <ImageIcon size={14} className="text-slate-400" />
-                              <span>人臉抓圖</span>
+                              <span>電子圍籬</span>
                            </div>
                            <span className="text-[9px] text-slate-500 font-mono">{event.timestamp}</span>
                         </div>
@@ -350,7 +350,7 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                                       e.stopPropagation();
                                       setModalContent({
                                           url: event.vlmData!.captureUrl,
-                                          title: "AI 人臉特寫存證",
+                                          title: "AI 電子圍籬存證",
                                           type: 'face',
                                           location: event.location,
                                           timestamp: event.timestamp,
@@ -363,7 +363,6 @@ const EventPanel: React.FC<EventPanelProps> = ({ events, onClearEvents, activeSi
                                  </button>
                               </div>
                               <div className="flex flex-wrap gap-2 pt-1">
-                                 <span className="px-3 py-1 bg-[#2d3a54] text-slate-200 text-[10px] font-bold rounded border border-slate-600">青年</span>
                                  <div className="w-8 h-8 rounded-full bg-[#2d3a54] border border-slate-600 flex items-center justify-center text-slate-200">
                                     <span className="text-lg font-bold">♂</span>
                                  </div>
