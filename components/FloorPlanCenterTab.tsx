@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Upload, 
@@ -88,9 +87,8 @@ const TreeItem: React.FC<TreeItemProps> = ({
 
   const getIcon = () => {
     if (isDevice) {
-      // 特定設備標籤與顏色同步 (與安防中心 SiteTree.tsx 一致)
       if (node.label === '環境偵測器') return <Thermometer size={14} className={isPlaced ? 'text-slate-600' : 'text-cyan-400'} />;
-      if (node.label === '空間偵測器') return <UserSearch size={14} className={isPlaced ? 'text-slate-600' : 'text-emerald-400'} />;
+      if (node.label.includes('空間偵測器')) return <UserSearch size={14} className={isPlaced ? 'text-slate-600' : 'text-emerald-400'} />;
       if (node.label === '多功能按鈕') return <Tablet size={14} className={isPlaced ? 'text-slate-600' : 'text-amber-400'} />;
       if (node.label === 'PIR') return <Activity size={14} className={isPlaced ? 'text-slate-600' : 'text-blue-400'} />;
       if (node.label === '門磁') return <DoorClosed size={14} className={isPlaced ? 'text-slate-600' : 'text-orange-400'} />;

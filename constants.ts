@@ -1,4 +1,3 @@
-
 import { SiteNode, SecurityEvent, FloorPlanData } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
@@ -33,7 +32,10 @@ export const SITE_TREE_DATA: SiteNode[] = [
                   { id: 'o-door', label: '門磁', type: 'device', deviceType: 'door' },
                   { id: 'o-btn', label: '緊急按鈕', type: 'device', deviceType: 'emergency' },
                   { id: 'c-env', label: '環境偵測器', type: 'device', deviceType: 'sensor' },
-                  { id: 'c-space', label: '空間偵測器', type: 'device', deviceType: 'sensor' },
+                  { id: 'c-space', label: '空間偵測器 (大門，人流)', type: 'device', deviceType: 'sensor' },
+                  { id: 'c-space-back', label: '空間偵測器 (後門，人流)', type: 'device', deviceType: 'sensor' },
+                  { id: 'c-space-side-a', label: '空間偵測器 (側門A，人流)', type: 'device', deviceType: 'sensor' },
+                  { id: 'c-space-side-b', label: '空間偵測器 (側門B，人流)', type: 'device', deviceType: 'sensor' },
                   { id: 'c-multi-btn', label: '多功能按鈕', type: 'device', deviceType: 'emergency' },
                 ],
               },

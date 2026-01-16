@@ -85,8 +85,8 @@ const TreeNode: React.FC<{
     }
   };
 
-  // 更新：主機 (host) 也支援拖曳
-  const isDraggable = node.type === 'device' || node.type === 'host';
+  // 更新：Site 層級現在也可以拖曳
+  const isDraggable = node.type === 'device' || node.type === 'host' || node.type === 'site';
 
   const handleDragStart = (e: React.DragEvent) => {
     if (isDraggable) {
@@ -94,8 +94,8 @@ const TreeNode: React.FC<{
         id: node.id,
         label: node.label,
         deviceType: node.deviceType,
-        nodeType: node.type, // 新增：傳遞節點類型以利區分主機與設備
-        type: 'device' // 保持通用的 Drag Type
+        nodeType: node.type,
+        type: 'device' 
       }));
       e.dataTransfer.effectAllowed = 'copy';
     } else {
@@ -106,7 +106,7 @@ const TreeNode: React.FC<{
   const getIcon = () => {
     if (node.type === 'device') {
       if (node.label === '環境偵測器') return <Thermometer size={14} className="text-cyan-400" />;
-      if (node.label === '空間偵測器') return <UserSearch size={14} className="text-emerald-400" />;
+      if (node.label.includes('空間偵測器')) return <UserSearch size={14} className="text-emerald-400" />;
       if (node.label === '多功能按鈕') return <Tablet size={14} className="text-amber-400" />;
       if (node.label === 'PIR') return <Activity size={14} className="text-blue-400" />;
       if (node.label === '門磁') return <DoorClosed size={14} className="text-orange-400" />;
