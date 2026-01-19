@@ -57,7 +57,8 @@ import {
   CheckSquare,
   Square as SquareIcon,
   ChevronDown,
-  Loader2
+  Loader2,
+  Crosshair
 } from 'lucide-react';
 
 // --- Import Site Specific Tabs ---
@@ -66,6 +67,17 @@ import SiteCumulativeAnalysis from './SiteCumulativeAnalysis';
 import SiteTimeComparison from './SiteTimeComparison';
 import SiteDeviceComparison from './SiteDeviceComparison';
 import SiteBehaviorProfile from './SiteBehaviorProfile';
+
+// --- Import Device Specific Tabs ---
+import SecurityInfo from './SecurityInfo';
+import ScenarioInfo from './ScenarioInfo';
+import DeviceInfo from './DeviceInfo';
+import HistoricalTrends from './HistoricalTrends';
+import SpaceFlowTrends from './SpaceFlowTrends';
+import SpaceHeatTrends from './SpaceHeatTrends';
+import SpaceCoordinateMap from './SpaceCoordinateMap';
+import TriggerHistory from './TriggerHistory';
+
 import { SITE_TREE_DATA } from '../constants';
 import { SiteNode, GridSize, MainNavType } from '../types';
 
@@ -79,6 +91,16 @@ export interface VideoSlotData {
   siteName?: string; 
 }
 
+// 統一且高對比的橘色系比例尺
+const HEATMAP_SCALE = [
+  { range: '0', hex: '#334155', label: '0人' },
+  { range: '1-2', hex: '#fdba74', label: '1-2人' },
+  { range: '3-4', hex: '#f97316', label: '3-4人' },
+  { range: '5-6', hex: '#ea580c', label: '5-6人' },
+  { range: '7-8', hex: '#c2410c', label: '7-8人' },
+  { range: '8+', hex: '#9a3412', label: '8人以上' },
+];
+
 interface VideoGridProps {
   gridSize: GridSize;
   activeSlots: Record<number, VideoSlotData>;
@@ -86,7 +108,7 @@ interface VideoGridProps {
   onRemoveCamera: (index: number) => void;
   onMoveCamera?: (fromIndex: number, toIndex: number) => void; 
   onToggleRecording: (index: number) => void;
-  onJumpToNav?: (nav: MainNavType, nodeId?: string) => void;
+  onJumpToNav?: (nav: MainNavType, subTab?: string) => void;
 }
 
 const MOCK_CAMERA_IMAGES = [
@@ -109,7 +131,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   const [detailModalSlot, setDetailModalSlot] = useState<VideoSlotData | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState('');
 
-  // --- Site 統計與匯出狀態 ---
   const [confirmedStatsDevices, setConfirmedStatsDevices] = useState<Set<string>>(new Set()); 
   const [pendingStatsDevices, setPendingStatsDevices] = useState<Set<string>>(new Set());     
   const [isRecalculating, setIsRecalculating] = useState(false);                             
@@ -117,10 +138,8 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   const [exportTabs, setExportTabs] = useState<Set<string>>(new Set(['daily', 'cumulative', 'comparison', 'device', 'behavior']));
   const [isExporting, setIsExporting] = useState(false);
 
-  // --- Helper: 找出該據點下所有符合條件的偵測器 (空間偵測器 + 人流) ---
   const eligibleStatsDevices = useMemo(() => {
     if (!detailModalSlot || detailModalSlot.nodeType !== 'site') return [];
-    
     const devices: SiteNode[] = [];
     const findNode = (nodes: SiteNode[], targetId: string): SiteNode | null => {
       for (const n of nodes) {
@@ -132,20 +151,17 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       }
       return null;
     };
-
     const traverseForEligible = (node: SiteNode) => {
       if (node.type === 'device' && node.label.includes('空間偵測器') && node.label.includes('人流')) {
         devices.push(node);
       }
       node.children?.forEach(traverseForEligible);
     };
-
     const siteNode = findNode(SITE_TREE_DATA, detailModalSlot.id);
     if (siteNode) traverseForEligible(siteNode);
     return devices;
   }, [detailModalSlot]);
 
-  // --- 核心更新：當彈窗開啟時，預設選取所有符合條件的設備 ---
   useEffect(() => {
     if (detailModalSlot?.nodeType === 'site' && eligibleStatsDevices.length > 0) {
       const allIds = eligibleStatsDevices.map(d => d.id);
@@ -205,7 +221,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
   const availableTabs = useMemo(() => {
     if (!detailModalSlot) return [];
-    
     if (detailModalSlot.nodeType === 'site') {
        return [
           { id: 'site_daily_overview', label: '當日人流總覽', icon: <LayoutList size={14}/> },
@@ -215,19 +230,51 @@ const VideoGrid: React.FC<VideoGridProps> = ({
           { id: 'site_behavior_profile', label: '行為輪廓特徵', icon: <User size={14}/> }
        ];
     }
-    return [
+    const tabs = [];
+    
+    // 新增：特定設備的「觸發紀錄」分頁
+    const hasTriggerHistory = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => detailModalSlot.label.includes(kw));
+    if (hasTriggerHistory) {
+      tabs.push({ id: 'trigger_history', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
+    }
+
+    // 空間偵測器專屬：座標圖
+    if (detailModalSlot.label.includes('空間偵測器')) {
+        tabs.push({ id: 'coordinate_map', label: '座標圖', icon: <Crosshair size={14}/> });
+    }
+
+    // 歷史趨勢
+    if (detailModalSlot.label.includes('環境偵測器')) {
+        tabs.push({ id: 'historical_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
+    } else if (detailModalSlot.label.includes('空間偵測器')) {
+        tabs.push({ id: 'space_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
+    }
+    
+    tabs.push(
       { id: 'security_info', label: '保全資訊', icon: <Shield size={14}/> },
       { id: 'scenario_info', label: '情境資訊', icon: <Zap size={14}/> },
       { id: 'device_info', label: '設備資訊', icon: <Cpu size={14}/> }
-    ];
+    );
+    return tabs;
   }, [detailModalSlot]);
 
   const openModal = (slot: VideoSlotData) => {
     setDetailModalSlot(slot);
-    const tabs = slot.nodeType === 'site' 
-      ? [{ id: 'site_daily_overview' }] 
-      : [{ id: 'security_info' }];
-    setActiveDetailTab(tabs[0].id);
+    // 更新預設顯示分頁邏輯
+    if (slot.nodeType === 'site') {
+      setActiveDetailTab('site_daily_overview');
+    } else {
+      const isTriggerType = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => slot.label.includes(kw));
+      if (isTriggerType) {
+        setActiveDetailTab('trigger_history');
+      } else if (slot.label.includes('空間偵測器')) {
+        setActiveDetailTab('coordinate_map');
+      } else if (slot.label.includes('環境偵測器')) {
+        setActiveDetailTab('historical_trends');
+      } else {
+        setActiveDetailTab('security_info');
+      }
+    }
   };
 
   const togglePendingDevice = (id: string) => {
@@ -270,6 +317,21 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     return false;
   }, [confirmedStatsDevices, pendingStatsDevices]);
 
+  const handleJumpToSecurity = () => {
+    setDetailModalSlot(null);
+    onJumpToNav?.('event-center', 'security-schedule');
+  };
+
+  const handleJumpToScenario = () => {
+    setDetailModalSlot(null);
+    onJumpToNav?.('event-center', 'settings');
+  };
+
+  const handleJumpToDeviceCenter = () => {
+    setDetailModalSlot(null);
+    onJumpToNav?.('device-center');
+  };
+
   const renderDeviceCard = (data: VideoSlotData) => {
     const isSmall = gridSize >= 9;
     const isTiny = gridSize === 16;
@@ -298,19 +360,79 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
+    if (data.label.includes('空間偵測器') && data.label.includes('熱度')) {
+      const currentLevel = 2; 
+      const currentHeat = HEATMAP_SCALE[currentLevel];
+      return (
+        <div className={`flex h-full w-full bg-[#0a0f1e] relative overflow-hidden transition-all duration-500 ${isSmall ? 'p-3' : 'p-6'} flex-col items-center justify-center`}>
+           <div className="flex flex-col items-center justify-center w-full">
+              <div className="mb-8">
+                 <div className="px-5 py-1.5 bg-orange-500/10 border border-orange-500/30 rounded-full flex items-center justify-center shadow-inner">
+                    <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">模式：空間熱度</span>
+                 </div>
+              </div>
+
+              <div className="flex w-full items-center justify-center gap-10">
+                 <div className="flex flex-col items-center gap-6">
+                    <div className="relative group/heat">
+                       <div 
+                         className={`rounded-full border-4 border-white/20 transition-all duration-1000 shadow-2xl ${isSmall ? 'w-24 h-24' : 'w-40 h-40'}`}
+                         style={{ 
+                            backgroundColor: currentHeat.hex,
+                            boxShadow: `0 0 60px ${currentHeat.hex}66, inset 0 0 30px rgba(255,255,255,0.1)` 
+                         }}
+                       />
+                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className={`${isSmall ? 'text-xl' : 'text-4xl'} font-black text-white italic tracking-tighter font-mono drop-shadow-lg`}>{currentHeat.range}</span>
+                          {!isTiny && <span className="text-[9px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">PAX</span>}
+                       </div>
+                    </div>
+                    <div className="text-center">
+                       <h4 className={`${isSmall ? 'text-xs' : 'text-xl'} font-black text-white italic tracking-tighter uppercase`}>區域狀態：{currentHeat.label}</h4>
+                    </div>
+                 </div>
+
+                 {!isTiny && (
+                   <div className="w-16 border-l border-white/10 flex flex-col justify-between py-1 pl-6 shrink-0 h-44">
+                      {HEATMAP_SCALE.slice().reverse().map((item, idx) => {
+                        const isCurrent = item.range === currentHeat.range;
+                        return (
+                          <div key={idx} className={`w-full flex items-center gap-3 group/mark transition-all ${isCurrent ? 'scale-110 translate-x-1' : 'opacity-40'}`}>
+                             <div 
+                               className={`w-3.5 h-3.5 rounded-sm shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-white/20 ${isCurrent ? 'ring-2 ring-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' : ''}`}
+                               style={{ backgroundColor: item.hex }}
+                             />
+                             {!isSmall && (
+                               <span className={`text-[10px] font-black tracking-tighter whitespace-nowrap ${isCurrent ? 'text-white' : 'text-slate-500'}`}>
+                                 {item.range} PAX
+                               </span>
+                             )}
+                          </div>
+                        );
+                      })}
+                   </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      );
+    }
+
     if (data.nodeType === 'site') {
-      const currentHour = new Date().getHours();
-      const avgData = [5, 3, 2, 4, 10, 25, 45, 70, 85, 60, 55, 62, 65, 58, 55, 80, 95, 105, 98, 75, 45, 30, 15, 8];
-      const realTimeVal = 70; 
-      const avgValForCurrentHour = avgData[currentHour];
+      const currentHour = 15; // 固定在 15 點以符合附件圖片
+      const avgData = [5, 3, 2, 4, 10, 25, 45, 70, 85, 60, 55, 62, 65, 58, 55, 55, 95, 105, 98, 75, 45, 30, 15, 8];
+      const realTimeVal = 70; // 當前狀態
+      const avgValForCurrentHour = avgData[currentHour]; // 平均狀態 (55)
       const isBusierThanAvg = realTimeVal > avgValForCurrentHour;
+      const busierPct = Math.round(((realTimeVal - avgValForCurrentHour) / avgValForCurrentHour) * 100);
 
       return (
         <div className={`flex flex-col h-full w-full bg-[#0a0f1e] text-slate-200 ${isSmall ? 'p-3' : 'p-6'} justify-between transition-all duration-500 relative overflow-hidden group`}>
            <div className="flex items-center gap-2 shrink-0">
               <div className="p-2 bg-blue-600/10 text-blue-400 rounded-lg"><Building2 size={isSmall ? 14 : 18}/></div>
-              <span className={`${isSmall ? 'text-[10px]' : 'text-sm'} font-black italic tracking-tighter uppercase truncate`}>{data.label}</span>
+              <span className={`${isSmall ? 'text-[10px]' : 'text-sm'} font-black italic tracking-tighter uppercase truncate`}>{data.label} (SITE)</span>
            </div>
+           
            <div className="flex-1 flex flex-col items-center justify-center -mt-4">
               <div className="flex items-center gap-2 mb-4 animate-in fade-in slide-in-from-bottom-1 duration-700">
                  <div className="px-2 py-0.5 bg-red-600 text-white text-[9px] font-black rounded border border-red-500 shadow-lg shadow-red-900/20">即時資料</div>
@@ -319,43 +441,50 @@ const VideoGrid: React.FC<VideoGridProps> = ({
               <div className="relative">
                  <div className={`${isSmall ? 'w-24 h-24 border-2' : 'w-32 h-32 border-4'} rounded-full border-blue-500/10 flex flex-col items-center justify-center relative shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]`}>
                     <span className={`${isSmall ? 'text-3xl' : 'text-5xl'} font-black text-white font-mono tracking-tighter`}>{realTimeVal}</span>
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest -mt-1">People Total</span>
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest -mt-1">PEOPLE TOTAL</span>
                  </div>
                  <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-blue-900/40 animate-pulse border border-blue-400">
                     <TrendingUp size={16} />
                  </div>
               </div>
            </div>
+
            <div className="space-y-3 shrink-0">
-              <div className={`h-12 w-full flex items-end gap-[2px] ${isSmall ? 'px-2' : 'px-4'}`}>
+              <div className={`h-12 w-full flex items-end gap-[4px] ${isSmall ? 'px-2' : 'px-4'}`}>
                  {avgData.map((val, idx) => {
                     const isCurrent = idx === currentHour;
-                    const height = (val / 110) * 100;
-                    const realHeight = (realTimeVal / 110) * 100;
+                    const maxPossible = 110;
+                    const avgHeight = (val / maxPossible) * 100;
+                    const realHeight = (realTimeVal / maxPossible) * 100;
+                    
                     return (
                       <div key={idx} className="flex-1 group/bar relative h-full flex flex-col justify-end">
                          {isCurrent ? (
                            <div className="w-full relative h-full flex flex-col justify-end">
-                              <div className="absolute bottom-0 w-full bg-blue-600/20 rounded-t-sm" style={{ height: `${height}%` }}></div>
+                              {/* 歷史平均：灰色柱狀 (依照附件二) */}
+                              <div className="absolute bottom-0 w-full bg-slate-700/60 rounded-t-sm" style={{ height: `${avgHeight}%` }}></div>
+                              {/* 當前狀態：粉色柱狀 (依照附件二) */}
                               <div className="relative w-full bg-[#ff70a0] rounded-t-sm shadow-[0_0_10px_rgba(255,112,160,0.4)]" style={{ height: `${realHeight}%` }}></div>
                            </div>
                          ) : (
-                           <div className={`w-full rounded-t-sm transition-all duration-500 bg-blue-600/40 group-hover/bar:bg-blue-600/60`} style={{ height: `${height}%` }}></div>
+                           // 非當前時段：顯示深藍色平均柱狀 (依照附件一)
+                           <div className="w-full rounded-t-sm transition-all duration-500 bg-[#162a5c]" style={{ height: `${avgHeight}%` }}></div>
                          )}
                       </div>
                     );
                  })}
               </div>
+              
               <div className="flex justify-between items-end border-t border-white/5 pt-3">
                  <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-1 text-[8px] font-black text-blue-500 uppercase tracking-[0.2em]">
                        <MapPin size={8}/> {data.siteGroup} > {data.siteName}
                     </div>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{data.label}</div>
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{data.label} (SITE)</div>
                  </div>
                  {!isTiny && (
-                    <div className={`text-[10px] font-black ${isBusierThanAvg ? 'text-red-500' : 'text-emerald-500'} italic`}>
-                       {isBusierThanAvg ? `▲ 較平均多 ${Math.round(((realTimeVal-avgValForCurrentHour)/avgValForCurrentHour)*100)}%` : '▼ 較平均少 8%'}
+                    <div className={`text-[10px] font-black ${isBusierThanAvg ? 'text-red-500' : 'text-emerald-500'} italic flex items-center gap-1`}>
+                       {isBusierThanAvg ? <><ArrowUpRight size={12}/> 較平均多 {busierPct}%</> : '▼ 較平均少 8%'}
                     </div>
                  )}
               </div>
@@ -366,20 +495,32 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
     if (data.label === '環境偵測器') {
       const metrics = [
-        { icon: <Thermometer size={14}/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
-        { icon: <Droplets size={14}/>, label: "濕度", value: "55", unit: "%", color: "text-blue-400" },
-        { icon: <Sun size={14}/>, label: "光照", value: "420", unit: "lux", color: "text-yellow-400" },
-        { icon: <Waves size={14}/>, label: "水浸", value: "正常", color: "text-emerald-400" }
+        { icon: <Thermometer size={14} className="text-orange-400"/>, label: "溫度", value: "24.5", unit: "°C", color: "text-orange-400" },
+        { icon: <Droplets size={14} className="text-blue-400"/>, label: "濕度", value: "55", unit: "%", color: "text-blue-400" },
+        { icon: <Sun size={14} className="text-amber-400"/>, label: "光照", value: "明亮", unit: "(420 LUX)", color: "text-amber-400" },
+        { icon: <Waves size={14} className="text-emerald-400"/>, label: "水浸(正)", value: "正常", color: "text-emerald-400" },
+        { icon: <Waves size={14} className="text-emerald-400"/>, label: "水浸(背)", value: "正常", color: "text-emerald-400" },
+        { icon: <Plug2 size={14} className="text-blue-400"/>, label: "外接：溫度", value: "26.1", unit: "°C", color: "text-blue-400" },
+        { icon: <Mic size={14} className="text-emerald-400"/>, label: "警報音辨識", value: "正常", color: "text-emerald-400" }
       ];
       return (
-        <div className={`flex flex-col h-full w-full bg-[#0a0f1e] ${isSmall ? 'p-2' : 'p-4'} pb-16`}>
-          <div className="grid grid-cols-1 gap-2 flex-1">
-             {metrics.map((m, idx) => (
-               <div key={idx} className="bg-white/5 border border-white/5 rounded-xl p-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">{m.icon}<span className="text-[9px] font-bold text-slate-500 uppercase">{m.label}</span></div>
-                  <span className={`text-xs font-black ${m.color}`}>{m.value} {m.unit}</span>
-               </div>
-             ))}
+        <div className={`flex flex-col h-full w-full bg-[#0a0f1e] ${isSmall ? 'p-2' : 'p-4'} pb-12`}>
+          <div className="grid grid-cols-2 gap-2 flex-1 content-start">
+             {metrics.map((m, idx) => {
+               const isFullWidth = idx === metrics.length - 1 && metrics.length % 2 !== 0;
+               return (
+                 <div key={idx} className={`bg-white/5 border border-white/5 rounded-xl p-2.5 flex flex-col justify-between hover:bg-white/10 transition-colors ${isFullWidth ? 'col-span-2' : ''}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {m.icon}
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter truncate">{m.label}</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-sm font-black ${m.color}`}>{m.value}</span>
+                      {m.unit && <span className={`text-[8px] font-bold ${m.color} opacity-60 uppercase`}>{m.unit}</span>}
+                    </div>
+                 </div>
+               );
+             })}
           </div>
         </div>
       );
@@ -441,9 +582,8 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       })}
 
       {detailModalSlot && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90 backdrop-blur-md p-6 animate-in fade-in duration-300">
-           <div className="relative max-w-[1600px] w-full bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
-              {/* Header */}
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+           <div className="relative max-w-[1600px] w-full bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5 animate-in zoom-in-95 duration-200 ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
               <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40 shrink-0">
                  <div className="flex items-center gap-5">
                     <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">{detailModalSlot.nodeType === 'site' ? <Building2 size={28}/> : <Cpu size={28}/>}</div>
@@ -452,7 +592,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                  <button onClick={() => setDetailModalSlot(null)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all"><X size={32} /></button>
               </div>
 
-              {/* Tab Navigation */}
               <div className="flex bg-black/20 border-b border-slate-800 px-8 shrink-0 overflow-x-auto no-scrollbar justify-between">
                  <div className="flex">
                     {availableTabs.map(tab => (
@@ -462,9 +601,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
               </div>
 
               <div className="flex-1 overflow-hidden flex">
-                 {/* Main Content Area */}
                  <div className="flex-1 relative overflow-hidden flex flex-col bg-[#0a0f1e]/50">
-                    {/* --- 計算中心重算遮罩 (Loading Overlay) --- */}
                     {isRecalculating && (
                        <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
                           <div className="relative w-20 h-20">
@@ -483,27 +620,27 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                           </div>
                        </div>
                     )}
-
                     <div className={`flex-1 overflow-y-auto custom-scrollbar p-10 transition-all duration-700 ${isRecalculating ? 'blur-sm grayscale opacity-50 scale-[0.98]' : ''}`}>
                        {activeDetailTab === 'site_daily_overview' && <SiteDailyOverview />}
                        {activeDetailTab === 'site_cumulative_analysis' && <SiteCumulativeAnalysis />}
                        {activeDetailTab === 'site_time_comparison' && <SiteTimeComparison />}
                        {activeDetailTab === 'site_device_comparison' && <SiteDeviceComparison />}
                        {activeDetailTab === 'site_behavior_profile' && <SiteBehaviorProfile onJumpToNav={onJumpToNav} />}
-
-                       {['security_info', 'scenario_info', 'device_info'].includes(activeDetailTab) && (
-                          <div className="flex flex-col items-center justify-center py-40 opacity-30 italic font-black uppercase tracking-widest">
-                             <Monitor size={48} className="mb-4" /> 數據計算中心連線中...
-                          </div>
+                       {activeDetailTab === 'historical_trends' && <HistoricalTrends />}
+                       {activeDetailTab === 'coordinate_map' && <SpaceCoordinateMap />}
+                       {activeDetailTab === 'trigger_history' && <TriggerHistory deviceLabel={detailModalSlot.label} />}
+                       {activeDetailTab === 'space_trends' && (
+                         detailModalSlot.label.includes('人流') ? <SpaceFlowTrends /> : <SpaceHeatTrends />
                        )}
+                       {activeDetailTab === 'security_info' && <SecurityInfo onJump={handleJumpToSecurity} />}
+                       {activeDetailTab === 'scenario_info' && <ScenarioInfo onJump={handleJumpToScenario} />}
+                       {activeDetailTab === 'device_info' && <DeviceInfo onJump={handleJumpToDeviceCenter} />}
                     </div>
                  </div>
 
-                 {/* --- 分析配置與匯出側邊欄 (僅 Site 顯示) --- */}
                  {detailModalSlot.nodeType === 'site' && (
                     <div className="w-[380px] border-l border-slate-800 bg-[#0b1121] flex flex-col shrink-0 p-8 overflow-y-auto custom-scrollbar">
                        <div className="space-y-10">
-                          {/* 統計設備選取 */}
                           <div className="space-y-6">
                              <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -515,7 +652,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                                 )}
                              </div>
                              <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">勾選後需點擊下方的「確認套用」按鈕以重新計算 5 個 TAB 的分析數據。</p>
-                             
                              <div className="space-y-2">
                                 {eligibleStatsDevices.length > 0 ? eligibleStatsDevices.map(dev => (
                                    <button 
@@ -535,8 +671,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                                    </div>
                                 )}
                              </div>
-
-                             {/* --- 確認套用按鈕 --- */}
                              <button 
                                 onClick={applyStatsDeviceSelection}
                                 disabled={!isStatsChanged || isRecalculating}
@@ -549,17 +683,13 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                                 {isRecalculating ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18}/> 確認套用選取</>}
                              </button>
                           </div>
-
                           <div className="h-px bg-slate-800"></div>
-
-                          {/* 資料匯出選取 */}
                           <div className="space-y-6">
                              <div className="flex items-center gap-3">
                                 <Download size={18} className="text-emerald-500" />
                                 <h4 className="text-xs font-black text-white uppercase tracking-widest">數據資料匯出設定</h4>
                              </div>
                              <p className="text-[10px] text-slate-500 font-medium italic">請選擇欲匯出之分析報表項 (Excel / CSV / PDF)。</p>
-                             
                              <div className="space-y-2">
                                 {[
                                    { id: 'daily', label: '當日人流總覽 (Daily Overview)' },
@@ -578,7 +708,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                                    </button>
                                 ))}
                              </div>
-
                              <button 
                                 onClick={handleExport}
                                 disabled={isExporting}
@@ -594,7 +723,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                  )}
               </div>
 
-              {/* Footer */}
               <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end shrink-0 gap-5">
                  <button onClick={() => setDetailModalSlot(null)} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl transition-all active:scale-95 ring-1 ring-white/10">關閉綜觀面板</button>
               </div>

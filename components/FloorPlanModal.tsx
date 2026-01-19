@@ -30,14 +30,14 @@ interface FloorPlanViewProps {
   activeDeviceFilters: Set<string>; 
 }
 
-// 熱度人數顏色配置 - 已調深顏色與增加透明度 Alpha 值
+// 統一且高對比的橘色系比例尺
 const HEATMAP_COLORS = [
   { range: '0', label: '0人', color: 'rgba(51, 65, 85, 0.4)', hex: '#334155' },
-  { range: '1-2', label: '1-2人', color: 'rgba(16, 185, 129, 0.65)', hex: '#10b981' },
-  { range: '3-4', label: '3-4人', color: 'rgba(245, 158, 11, 0.75)', hex: '#f59e0b' },
-  { range: '5-6', label: '5-6人', color: 'rgba(249, 115, 22, 0.85)', hex: '#f97316' },
-  { range: '7-8', label: '7-8人', color: 'rgba(239, 68, 68, 0.9)', hex: '#ef4444' },
-  { range: '8+', label: '8人以上', color: 'rgba(127, 29, 29, 0.95)', hex: '#7f1d1d' },
+  { range: '1-2', label: '1-2人', color: 'rgba(253, 186, 116, 0.65)', hex: '#fdba74' },
+  { range: '3-4', label: '3-4人', color: 'rgba(249, 115, 22, 0.75)', hex: '#f97316' },
+  { range: '5-6', label: '5-6人', color: 'rgba(234, 88, 12, 0.85)', hex: '#ea580c' },
+  { range: '7-8', label: '7-8人', color: 'rgba(194, 65, 12, 0.9)', hex: '#c2410c' },
+  { range: '8+', label: '8人以上', color: 'rgba(154, 52, 18, 0.95)', hex: '#9a3412' },
 ];
 
 const FloorPlanView: React.FC<FloorPlanViewProps> = ({ 
@@ -46,7 +46,6 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({
   const [floorPlan, setFloorPlan] = useState<FloorPlanData>(initialData || { siteId: site.id, imageUrl: '', sensors: [] });
   const [showHeatmap, setShowHeatmap] = useState(true);
   
-  // Zoom & Pan States
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -54,16 +53,14 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({
 
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // 模擬每個熱度偵測器的隨機人數數據
   const deviceHeatValues = useMemo(() => {
     const vals: Record<string, number> = {};
     floorPlan.sensors.forEach(s => {
-       vals[s.id] = Math.floor(Math.random() * 10); // 0-9人
+       vals[s.id] = Math.floor(Math.random() * 10);
     });
     return vals;
   }, [floorPlan.sensors]);
 
-  // --- Helpers ---
   const getParentNode = (id: string): SiteNode | null => {
     let result: SiteNode | null = null;
     const search = (nodes: SiteNode[], targetId: string, p: SiteNode | null): boolean => {
@@ -151,41 +148,37 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({
     const sId = activeEvent.sensorId;
     const lId = activeEvent.linkedSensorId;
     if (!sId || !lId) return null;
-    
     const s1 = floorPlan.sensors.find((s: SensorPosition) => s.id === sId);
     const s2 = floorPlan.sensors.find((s: SensorPosition) => s.id === lId);
     if (!s1 || !s2) return null;
-    
     const d1 = allDevices.find(d => d.id === s1.id);
     const d2 = allDevices.find(d => d.id === s2.id);
     if (d1 && !isDeviceVisible(d1.label)) return null;
     if (d2 && !isDeviceVisible(d2.label)) return null;
-
     return { x1: s1.x, y1: s1.y, x2: s2.x, y2: s2.y };
   }, [activeEvent, floorPlan.sensors, activeDeviceFilters, allDevices]);
 
   return (
     <div className="flex flex-col h-full w-full bg-[#050914] animate-in fade-in duration-500 relative">
-        {/* --- 熱度人數圖例 (Legend) --- */}
         {showHeatmap && (
-           <div className="absolute top-6 right-6 z-[60] bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl animate-in slide-in-from-right-4 duration-500">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b border-white/5">
-                 <Layers size={14} className="text-blue-500" />
-                 <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">熱度分佈說明</span>
+           <div className="absolute top-6 right-6 z-[60] bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl animate-in slide-in-from-right-4 duration-500">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
+                 <Layers size={16} className="text-orange-500" />
+                 <span className="text-[11px] font-black text-slate-200 uppercase tracking-widest">熱度分佈說明</span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4">
                  {HEATMAP_COLORS.slice().reverse().map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-6">
-                       <div className="flex items-center gap-2.5">
-                          <div className="w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)]" style={{ backgroundColor: item.hex }}></div>
-                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{item.label}</span>
+                    <div key={idx} className="flex items-center justify-between gap-10">
+                       <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.2)] border border-white/10" style={{ backgroundColor: item.hex }}></div>
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{item.label}</span>
                        </div>
-                       <span className="text-[9px] font-mono font-black text-slate-400">{item.range} PAX</span>
+                       <span className="text-[10px] font-mono font-black text-slate-500">{item.range} PAX</span>
                     </div>
                  ))}
               </div>
-              <div className="mt-4 pt-2 border-t border-white/5">
-                 <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Radius: 6-8 Meters (AI Sim)</span>
+              <div className="mt-6 pt-4 border-t border-white/10">
+                 <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest italic">Simulation Radius: 6-8m</span>
               </div>
            </div>
         )}
@@ -248,13 +241,11 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({
                         className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-300 pointer-events-auto`}
                         style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                       >
-                        {/* --- 空間熱度圖 (Heatmap Overlay) --- */}
-                        {/* 優化漸層：減少外圍透明度，增強核心顏色的凝聚力與深度 */}
                         {isHeatSensor && showHeatmap && (
                            <div 
                              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none mix-blend-screen opacity-100 animate-pulse duration-[3000ms] z-0"
                              style={{ 
-                               width: '240px', // 稍微擴大光暈範圍
+                               width: '240px',
                                height: '240px',
                                background: `radial-gradient(circle, ${heatConfig.color} 0%, ${heatConfig.color.replace('0.', '0.1')} 40%, transparent 80%)`
                              }}
@@ -302,13 +293,13 @@ const FloorPlanView: React.FC<FloorPlanViewProps> = ({
 
             {floorPlan.imageUrl && (
               <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-[#1e293b]/90 backdrop-blur-md border border-slate-700 p-2 rounded-xl flex items-center gap-2 shadow-2xl z-40">
-                <button onClick={() => setShowHeatmap(!showHeatmap)} className={`p-2 rounded-lg transition-all flex items-center gap-2 mr-2 ${showHeatmap ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`} title="切換熱力圖層">
+                <button onClick={() => setShowHeatmap(!showHeatmap)} className={`p-2 rounded-lg transition-all flex items-center gap-2 mr-2 ${showHeatmap ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/40' : 'bg-slate-700 text-slate-400 hover:text-slate-200'}`} title="切換熱力圖層">
                    <Layers size={18}/>
                    <span className="text-[10px] font-black uppercase">Heatmap</span>
                 </button>
                 <div className="w-px h-6 bg-slate-700 mx-1"></div>
                 <button onClick={() => setScale(prev => Math.max(prev - 0.2, 0.5))} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"><ZoomOut size={18}/></button>
-                <div className="w-12 text-center text-xs font-mono font-bold text-blue-400">{(scale * 100).toFixed(0)}%</div>
+                <div className="w-12 text-center text-xs font-mono font-bold text-orange-400">{(scale * 100).toFixed(0)}%</div>
                 <button onClick={() => setScale(prev => Math.min(prev + 0.2, 5))} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors"><ZoomIn size={18}/></button>
                 <div className="w-px h-4 bg-slate-700 mx-1"></div>
                 <button onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }} className="p-2 hover:bg-slate-700 rounded-lg text-slate-300 transition-colors flex items-center gap-1.5"><Maximize size={16}/><span className="text-[10px] font-bold">RESET</span></button>
