@@ -64,6 +64,7 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 children: [
                   { id: 'w-door-1', label: '門磁', type: 'device', deviceType: 'door' },
                   { id: 'w-ipc-1', label: 'IPC', type: 'device', deviceType: 'camera' },
+                  { id: 'w-space-heat', label: '空間偵測器 (倉庫，熱度)', type: 'device', deviceType: 'sensor' },
                 ],
               },
               {
@@ -74,6 +75,10 @@ export const SITE_TREE_DATA: SiteNode[] = [
                 children: [
                   { id: 'm-door-1', label: '門磁', type: 'device', deviceType: 'door' },
                   { id: 'm-sos-1', label: 'SOS按鈕', type: 'device', deviceType: 'emergency' },
+                  { id: 'm-space-heat-a', label: '空間偵測器 (辦公室A，熱度)', type: 'device', deviceType: 'sensor' },
+                  { id: 'm-space-heat-b', label: '空間偵測器 (辦公室B，熱度)', type: 'device', deviceType: 'sensor' },
+                  { id: 'm-space-heat-c', label: '空間偵測器 (辦公室C，熱度)', type: 'device', deviceType: 'sensor' },
+                  { id: 'm-space-heat-rest', label: '空間偵測器 (休息區，熱度)', type: 'device', deviceType: 'sensor' },
                 ],
               },
             ],
@@ -193,7 +198,6 @@ export const MOCK_EVENTS: SecurityEvent[] = [
 ];
 
 export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
-  // --- 台北市群組 ---
   {
     siteId: 'taipei-group',
     type: 'map',
@@ -208,7 +212,6 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
     },
     sensors: []
   },
-  // --- 台中市群組 ---
   {
     siteId: 'taichung-group',
     type: 'map',
@@ -223,7 +226,6 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
     },
     sensors: []
   },
-  // --- 各 Site 預設地圖 ---
   {
     siteId: 'site-hq',
     type: 'map',
@@ -268,7 +270,6 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
     },
     sensors: []
   },
-  // --- 主機層級為影像 (BMP) ---
   {
     siteId: 'host-hq-1',
     type: 'image',
@@ -279,18 +280,27 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
       { id: 'c-ipc-1', x: 44.8, y: 38.2 },   
       { id: 'c-pir', x: 33.6, y: 50.8 },     
       { id: 'o-door', x: 18.5, y: 71.2 },    
+      { id: 'c-space', x: 50.0, y: 85.0 },
+      { id: 'c-space-back', x: 85.0, y: 20.0 },
+      { id: 'c-space-side-a', x: 10.0, y: 50.0 },
+      { id: 'c-space-side-b', x: 90.0, y: 50.0 }
     ]
   },
   {
     siteId: 'host-zs-1',
     type: 'image',
     imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan%202.png?raw=true',
-    hostPosition: { x: 70, y: 30 },
+    hostPosition: { x: 70, y: 32 },
     sensors: [
-      { id: 'w-door-1', x: 20, y: 25 },  
-      { id: 'w-ipc-1', x: 40, y: 20 },   
+      { id: 'w-door-1', x: 15, y: 25 },  
+      { id: 'w-ipc-1', x: 35, y: 18 },
+      { id: 'w-space-heat', x: 60, y: 25 },
       { id: 'm-door-1', x: 25, y: 65 },  
-      { id: 'm-sos-1', x: 50, y: 75 },   
+      { id: 'm-sos-1', x: 50, y: 75 },
+      { id: 'm-space-heat-a', x: 12.5, y: 80 },  // 辦公室A (左下)
+      { id: 'm-space-heat-b', x: 37.5, y: 80 },  // 辦公室B (中左下)
+      { id: 'm-space-heat-c', x: 62.5, y: 80 },  // 辦公室C (中右下)
+      { id: 'm-space-heat-rest', x: 87.5, y: 80 }, // 休息區 (右下)
     ]
   }
 ];
