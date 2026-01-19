@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
   User, 
@@ -23,11 +22,13 @@ import {
   Trash2,
   Calendar,
   Settings2,
-  AlertCircle
+  AlertCircle,
+  MessageSquare
 } from 'lucide-react';
 import { MOCK_SYSTEM_LOGS } from '../constants';
+import FeedbackTab from './FeedbackTab';
 
-type SubNavType = 'account' | 'logs';
+type SubNavType = 'account' | 'logs' | 'feedback';
 type LogLevel = 'ALL' | 'INFO' | 'WARN' | 'ERROR';
 
 const SettingTab: React.FC = () => {
@@ -35,6 +36,13 @@ const SettingTab: React.FC = () => {
   const [logFilter, setLogFilter] = useState<LogLevel>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [showLogMenu, setShowLogMenu] = useState(false);
+
+  // Mock 當前使用者資訊
+  const currentUser = {
+    name: 'Admin',
+    email: 'admin@sks.com.tw',
+    site: '總公司 (HQ Node)'
+  };
 
   // Filter logs based on search and level
   const filteredLogs = useMemo(() => {
@@ -62,6 +70,7 @@ const SettingTab: React.FC = () => {
           {[
             { id: 'account', label: '個人帳戶資訊', icon: <User size={18} />, desc: 'Profile & Security' },
             { id: 'logs', label: '系統操作日誌', icon: <FileText size={18} />, desc: 'System Audit Logs' },
+            { id: 'feedback', label: '客戶意見回饋', icon: <MessageSquare size={18} />, desc: 'Support & Suggestions' },
           ].map(item => (
             <button 
               key={item.id}
@@ -218,14 +227,14 @@ const SettingTab: React.FC = () => {
                 </div>
              </div>
           </div>
-        ) : (
+        ) : activeSubNav === 'logs' ? (
           <div className="w-full max-w-[1400px] mx-auto p-10 animate-in fade-in slide-in-from-right-4 duration-500">
              
              {/* Large Web-Style Log Header */}
              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-10 pb-8 border-b border-slate-800/50">
                 <div>
-                   <h1 className="text-4xl font-black text-white tracking-tighter mb-2">System Audit Logs <span className="text-blue-600">.</span></h1>
-                   <p className="text-sm text-slate-500 font-medium">記錄所有操作員、感測器狀態變更與系統自動化任務的執行歷史</p>
+                   <h1 className="text-4xl font-black text-white tracking-tighter mb-2 italic">System Audit Logs <span className="text-blue-600">.</span></h1>
+                   <p className="text-sm text-slate-500 font-medium italic">記錄所有操作員、感測器狀態變更與系統自動化任務的執行歷史</p>
                 </div>
                 <div className="flex items-center gap-3 relative">
                    <button className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl text-xs font-black transition-all flex items-center gap-2 tracking-widest uppercase border border-slate-700">
@@ -299,7 +308,7 @@ const SettingTab: React.FC = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse min-w-[800px]">
                     <thead>
-                      <tr className="bg-[#0f172a]/50 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
+                      <tr className="bg-black/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800">
                         <th className="px-8 py-5">Type</th>
                         <th className="px-8 py-5">Precise Time</th>
                         <th className="px-8 py-5">Level</th>
@@ -362,6 +371,8 @@ const SettingTab: React.FC = () => {
                 </div>
              </div>
           </div>
+        ) : (
+          <FeedbackTab user={currentUser} />
         )}
       </div>
     </div>
