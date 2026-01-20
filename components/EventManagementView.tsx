@@ -8,7 +8,6 @@ import {
   Trash2, 
   Zap, 
   Mail, 
-  Smartphone, 
   UserCheck, 
   Timer, 
   Check, 
@@ -17,22 +16,17 @@ import {
   CheckCircle,
   Cpu,
   Video,
-  Speaker,
   MoreVertical,
   CheckCircle2,
-  Bell,
   Clock,
   Info,
-  LayoutList,
   AlertTriangle,
   CalendarClock,
   Shield,
-  DoorOpen,
   Pencil,
   Power,
   ChevronDown,
-  ChevronUp,
-  Square
+  ChevronUp
 } from 'lucide-react';
 import { SITE_TREE_DATA } from '../constants';
 import { SiteNode } from '../types';
@@ -349,6 +343,9 @@ const TimelineEditor: React.FC<{
 
               {blocks.filter(b => b.day === dayIndex).map(block => {
                 const isAllDay = block.startMinutes === 0 && block.endMinutes === 1440;
+                // Tooltip visibility: show on hover OR while actively dragging/resizing
+                const shouldShowTooltip = !isAllDay && (draggingBlockId === block.id || (hoveredBlockId === block.id && !draggingBlockId));
+
                 return (
                   <div 
                     key={block.id}
@@ -381,7 +378,7 @@ const TimelineEditor: React.FC<{
                        <div className="absolute right-0 w-3 h-full cursor-ew-resize z-30" onMouseDown={(e) => handleMouseDown(e, block.id, 'right')}></div>
                     )}
 
-                    {hoveredBlockId === block.id && !isAllDay && !draggingBlockId && (
+                    {shouldShowTooltip && (
                       <div className="absolute top-[-44px] left-1/2 -translate-x-1/2 bg-[#111827] border border-slate-700 px-3 py-2 rounded-lg text-[11px] font-black text-white shadow-2xl whitespace-nowrap z-[100] animate-in fade-in zoom-in-95 pointer-events-none border-b-blue-500 border-b-2">
                         {formatMinutesToTime(block.startMinutes)} - {formatMinutesToTime(block.endMinutes)}
                         <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#111827] rotate-45 border-r border-b border-slate-700"></div>
@@ -492,6 +489,14 @@ const TimeSelector: React.FC<{ value: number, max: number, min: number, onChange
     </div>
   );
 };
+
+// --- Custom Icons ---
+const Smartphone = ({ size, className }: { size: number, className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+  </svg>
+);
 
 // --- Main Page Component ---
 const EventManagementView: React.FC = () => {
@@ -891,7 +896,7 @@ const EventManagementView: React.FC = () => {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-black/20 border border-dashed border-slate-800 rounded-[2.5rem] opacity-40">
-                  <Plus size={48} className="text-slate-600 mb-4" />
+                  <MapIcon size={48} className="text-slate-600 mb-4" />
                   <p className="text-sm font-black text-slate-500 uppercase tracking-widest leading-relaxed">請先完成範圍與<br/>排程設定</p>
                 </div>
               )}
@@ -1005,6 +1010,24 @@ const EventManagementView: React.FC = () => {
              </div>
           </div>
         )}
+
+        {deleteConfirmId && (
+          <div className="fixed inset-0 z-[3100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+             {/* Fix: Corrected invalid max-md to max-w-md to ensure proper Tailwind rendering and avoid potential parsing confusion. */}
+             <div className="bg-[#111827] border border-slate-700 rounded-[3rem] shadow-[0_20px_80px_rgba(0,0,0,0.9)] p-12 max-w-md w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
+                <div className="w-24 h-24 bg-red-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-red-500/20 shadow-inner">
+                   <AlertTriangle className="text-red-500" size={56} />
+                </div>
+                <h2 className="text-3xl font-black text-white mb-3 uppercase italic tracking-tighter">確定刪除規則？</h2>
+                <p className="text-base text-slate-500 mb-10 leading-relaxed font-medium">此操作將永久移除此項自訂情境連動規則，且無法復原。您確定要繼續嗎？</p>
+                
+                <div className="grid grid-cols-2 gap-6">
+                   <button onClick={() => deleteScenario(deleteConfirmId)} className="py-5 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-red-900/40 transition-all active:scale-95">確認刪除</button>
+                   <button onClick={() => setDeleteConfirmId(null)} className="py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-sm uppercase tracking-widest border border-slate-700 transition-all active:scale-95">返回</button>
+                </div>
+             </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1013,7 +1036,7 @@ const EventManagementView: React.FC = () => {
     <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12 pb-8 border-b border-slate-800/50">
         <div>
-          <h1 className="text-4xl font-black text-white tracking-tighter mb-2 italic uppercase tracking-tighter">情境管理 <span className="text-blue-600">.</span></h1>
+          <h1 className="text-4xl font-black text-white tracking-tighter mb-2 italic uppercase">情境管理 <span className="text-blue-600">.</span></h1>
           <p className="text-sm text-slate-500 font-medium italic">根據個人需求自訂感測器通知與設備連動規則</p>
         </div>
         <button onClick={() => setIsCreating(true)} className="px-10 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-widest shadow-2xl shadow-blue-900/30 flex items-center gap-3 active:scale-95"><Plus size={20} /> 新增自訂情境</button>
@@ -1126,7 +1149,7 @@ const EventManagementView: React.FC = () => {
             <Info size={40} />
          </div>
          <div className="space-y-3 relative z-10">
-            <h3 className="text-2xl font-black text-white tracking-tighter italic uppercase tracking-tighter">什麼是情境？</h3>
+            <h3 className="text-2xl font-black text-white tracking-tighter italic uppercase">什麼是情境？</h3>
             <p className="text-base text-slate-400 leading-relaxed font-medium">
                自訂情境允許您針對特定的硬體狀態設定通知規則。這些規則可根據排程與保全狀態進行過濾，符合條件時系統會自動執行連動動作。
             </p>
@@ -1135,7 +1158,8 @@ const EventManagementView: React.FC = () => {
 
       {deleteConfirmId && (
         <div className="fixed inset-0 z-[3100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
-           <div className="bg-[#111827] border border-slate-700 rounded-[3rem] shadow-[0_20px_80px_rgba(0,0,0,0.9)] p-12 max-md w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
+           {/* Fix: Corrected invalid max-md to max-w-md to ensure proper Tailwind rendering and avoid potential parsing confusion. */}
+           <div className="bg-[#111827] border border-slate-700 rounded-[3rem] shadow-[0_20px_80px_rgba(0,0,0,0.9)] p-12 max-w-md w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
               <div className="w-24 h-24 bg-red-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-red-500/20 shadow-inner">
                  <AlertTriangle className="text-red-500" size={56} />
               </div>
