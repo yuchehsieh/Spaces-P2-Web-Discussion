@@ -180,7 +180,6 @@ const EventManagementView: React.FC = () => {
   const [triggerCondition, setTriggerCondition] = useState<TriggerCondition>(
     { id: 'initial', device: '', event: '', operator: '>', value: '' }
   );
-  const [onlyDuringArmed, setOnlyDuringArmed] = useState(false);
 
   // Action States
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([]);
@@ -257,7 +256,6 @@ const EventManagementView: React.FC = () => {
   if (isCreating) {
     return (
       <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
-        {/* 新增情境 UI 部份保持不變... */}
         <div className="flex items-center justify-between mb-10 pb-6 border-b border-slate-800">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsCreating(false)} className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl border border-slate-700 transition-all"><ChevronLeft size={24} /></button>
@@ -359,66 +357,47 @@ const EventManagementView: React.FC = () => {
             <h3 className="text-xl font-black text-white tracking-tighter mb-8 flex items-center gap-3"><Database size={20} className="text-blue-500" /> 觸發條件邏輯</h3>
             <div className="flex-1 space-y-6 overflow-y-auto custom-scrollbar pr-2 max-h-[750px]">
               {selectedZoneId ? (
-                <>
-                  <div className="space-y-5">
-                    <div className="p-6 bg-[#050914] border border-slate-800 rounded-[2rem] relative animate-in zoom-in-95 duration-200 group shadow-inner">
-                      <div className="flex justify-between items-center mb-5">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">唯一觸發條件</span>
+                <div className="space-y-5">
+                  <div className="p-6 bg-[#050914] border border-slate-800 rounded-[2rem] relative animate-in zoom-in-95 duration-200 group shadow-inner">
+                    <div className="flex justify-between items-center mb-5">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">唯一觸發條件</span>
+                    </div>
+                    <div className="space-y-5">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-600 ml-1">選擇設備類型</span>
+                        <select value={triggerCondition.device} onChange={(e) => updateCondition('device', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500 appearance-none">
+                          <option value="">選擇設備...</option>
+                          {TRIGGER_DEVICES.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
                       </div>
-                      <div className="space-y-5">
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold text-slate-600 ml-1">選擇設備類型</span>
-                          <select value={triggerCondition.device} onChange={(e) => updateCondition('device', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500 appearance-none">
-                            <option value="">選擇設備...</option>
-                            {TRIGGER_DEVICES.map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <span className="text-[10px] font-bold text-slate-600 ml-1">選擇觸發事件</span>
-                          <select value={triggerCondition.event} disabled={!triggerCondition.device} onChange={(e) => updateCondition('event', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500 disabled:opacity-30 appearance-none">
-                            <option value="">選擇事件...</option>
-                            {triggerCondition.device && DEVICE_EVENTS_MAP[triggerCondition.device].map(ev => <option key={ev} value={ev}>{ev}</option>)}
-                          </select>
-                        </div>
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-600 ml-1">選擇觸發事件</span>
+                        <select value={triggerCondition.event} disabled={!triggerCondition.device} onChange={(e) => updateCondition('event', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500 disabled:opacity-30 appearance-none">
+                          <option value="">選擇事件...</option>
+                          {triggerCondition.device && DEVICE_EVENTS_MAP[triggerCondition.device].map(ev => <option key={ev} value={ev}>{ev}</option>)}
+                        </select>
+                      </div>
 
-                        {triggerCondition.event && VALUE_BASED_EVENTS.includes(triggerCondition.event) && (
-                          <div className="grid grid-cols-2 gap-3 pt-2 animate-in slide-in-from-top-2">
-                            <div className="space-y-1.5">
-                                <span className="text-[10px] font-bold text-slate-600 ml-1">運算子</span>
-                                <select value={triggerCondition.operator} onChange={(e) => updateCondition('operator', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500">
-                                  {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <span className="text-[10px] font-bold text-slate-600 ml-1">數值</span>
-                                <input 
-                                  type="text" placeholder="輸入值..." value={triggerCondition.value} onChange={(e) => updateCondition('value', e.target.value)}
-                                  className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500"
-                                />
-                            </div>
+                      {triggerCondition.event && VALUE_BASED_EVENTS.includes(triggerCondition.event) && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 animate-in slide-in-from-top-2">
+                          <div className="space-y-1.5">
+                              <span className="text-[10px] font-bold text-slate-600 ml-1">運算子</span>
+                              <select value={triggerCondition.operator} onChange={(e) => updateCondition('operator', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500">
+                                {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
+                              </select>
                           </div>
-                        )}
-                      </div>
+                          <div className="space-y-1.5">
+                              <span className="text-[10px] font-bold text-slate-600 ml-1">數值</span>
+                              <input 
+                                type="text" placeholder="輸入值..." value={triggerCondition.value} onChange={(e) => updateCondition('value', e.target.value)}
+                                className="w-full bg-[#111827] border border-slate-700 rounded-xl py-3 px-4 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500"
+                              />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div className="mt-8 pt-8 border-t border-slate-800/50 space-y-4">
-                     <div className="flex items-center justify-between p-5 bg-blue-600/5 border border-blue-500/20 rounded-3xl group cursor-pointer" onClick={() => setOnlyDuringArmed(!onlyDuringArmed)}>
-                        <div className="flex items-center gap-4">
-                           <div className={`p-3 rounded-2xl transition-all ${onlyDuringArmed ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500'}`}>
-                              <Shield size={20} />
-                           </div>
-                           <div>
-                              <span className="block text-sm font-bold text-slate-200">僅在保全設防時段觸發</span>
-                              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Only trigger when Armed</span>
-                           </div>
-                        </div>
-                        <div className={`w-12 h-6 rounded-full relative transition-all duration-300 ${onlyDuringArmed ? 'bg-blue-600' : 'bg-slate-800'}`}>
-                           <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${onlyDuringArmed ? 'left-7' : 'left-1'}`}></div>
-                        </div>
-                     </div>
-                  </div>
-                </>
+                </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-black/20 border border-dashed border-slate-800 rounded-[2.5rem] opacity-40">
                   <MapIcon size={48} className="text-slate-600 mb-4" />
@@ -615,12 +594,6 @@ const EventManagementView: React.FC = () => {
                                <span className="block text-xs font-bold text-slate-200">{triggerCondition.device} : {triggerCondition.event} {VALUE_BASED_EVENTS.includes(triggerCondition.event) ? `(${triggerCondition.operator} ${triggerCondition.value})` : ''}</span>
                             </div>
                          </div>
-                         {onlyDuringArmed && (
-                           <div className="bg-blue-600/10 border border-blue-500/30 px-6 py-4 rounded-xl flex items-center gap-3">
-                              <Shield size={16} className="text-blue-400" />
-                              <span className="text-xs font-black text-blue-300 uppercase tracking-widest">僅於保全設防時執行</span>
-                           </div>
-                         )}
                       </div>
                    </div>
 
