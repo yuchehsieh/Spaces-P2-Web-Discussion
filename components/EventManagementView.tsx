@@ -28,6 +28,8 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarDays,
+  // Added missing Calendar icon import
+  Calendar,
   Globe,
   Link2,
   ShieldCheck,
@@ -614,6 +616,8 @@ const EventManagementView: React.FC = () => {
     MOCK_SECURITY_EVENTS.filter(e => selectedSecurityEventIds.has(e.id))
   , [selectedSecurityEventIds]);
 
+  const selectedNode = null; // Defined for scope completeness if needed locally
+
   const isStep1Valid = !!selectedZoneId && (
     scheduleType === 'always' || 
     (scheduleType === 'custom' && timeBlocks.length > 0) || 
@@ -1192,6 +1196,55 @@ const EventManagementView: React.FC = () => {
                               {scheduleType === 'always' ? '永遠啟動 (ALWAYS)' : scheduleType === 'custom' ? '自訂時段 (CUSTOM)' : scheduleType === 'security-sync' ? '保全同步連動 (SECURITY)' : '到點執行模式 (POINTS)'}
                             </span>
                          </div>
+                         
+                         {/* 詳細排程摘要 - 自訂時段 */}
+                         {scheduleType === 'custom' && timeBlocks.length > 0 && (
+                           <div className="mt-4 space-y-3 p-4 bg-blue-600/5 border border-blue-500/20 rounded-2xl animate-in fade-in">
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2 flex items-center gap-2">
+                                <Clock size={12}/> 已設定時段摘要
+                              </div>
+                              <div className="space-y-2.5">
+                                {DAYS_OPTIONS.map((day, dIdx) => {
+                                  const blocks = timeBlocks.filter(b => b.day === dIdx);
+                                  if (blocks.length === 0) return null;
+                                  return (
+                                    <div key={day} className="flex items-start gap-4 text-[11px]">
+                                      <span className="text-blue-500 font-black shrink-0 w-8">週{day}</span>
+                                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                        {blocks.map(b => (
+                                          <span key={b.id} className="text-slate-300 font-mono font-bold tracking-tighter">
+                                            {formatMinutesToTime(b.startMinutes)} - {formatMinutesToTime(b.endMinutes)}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                           </div>
+                         )}
+
+                         {/* 詳細排程摘要 - 到點執行 */}
+                         {scheduleType === 'time-points' && timePoints.length > 0 && (
+                           <div className="mt-4 space-y-3 p-4 bg-blue-600/5 border border-blue-500/20 rounded-2xl animate-in fade-in">
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2 flex items-center gap-2">
+                                <Calendar size={12}/> 預定執行時間點
+                              </div>
+                              <div className="grid grid-cols-1 gap-2">
+                                 {timePoints.map(tp => (
+                                   <div key={tp.id} className="flex items-center justify-between bg-black/40 p-2.5 rounded-xl border border-white/5">
+                                      <span className="text-sm font-black text-white font-mono tracking-tighter">{tp.time}</span>
+                                      <div className="flex gap-1">
+                                         {tp.days.map(d => (
+                                           <span key={d} className="w-5 h-5 flex items-center justify-center bg-blue-600 text-white text-[9px] font-black rounded-md shadow-lg">{d}</span>
+                                         ))}
+                                      </div>
+                                   </div>
+                                 ))}
+                              </div>
+                           </div>
+                         )}
+
                          {scheduleType === 'security-sync' && (
                            <div className="flex flex-col gap-3 p-4 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
                              <div className="flex items-center gap-3">
@@ -1221,7 +1274,7 @@ const EventManagementView: React.FC = () => {
                                   {scheduleType === 'security-sync' 
                                     ? `隨上述 ${selectedSecurityEventIds.size} 個保全動作同步觸發`
                                     : triggerSourceType === 'time' 
-                                      ? '到點執行模式 (Time Point Mode)' 
+                                      ? '排程同步觸發模式 (Scheduled Logic)' 
                                       : `${triggerCondition.device} : ${triggerCondition.event}`}
                                </span>
                             </div>
