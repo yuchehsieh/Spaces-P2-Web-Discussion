@@ -26,7 +26,13 @@ import {
   Pencil,
   Power,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  CalendarDays,
+  Globe,
+  Link2,
+  ShieldCheck,
+  ShieldOff,
+  Settings2
 } from 'lucide-react';
 import { SITE_TREE_DATA } from '../constants';
 import { SiteNode } from '../types';
@@ -37,6 +43,12 @@ interface TimeBlock {
   day: number; // 0-6 (Sun-Sat)
   startMinutes: number; // 0-1440
   endMinutes: number;
+}
+
+interface TimePointEntry {
+  id: string;
+  time: string;
+  days: string[];
 }
 
 interface TriggerCondition {
@@ -63,8 +75,9 @@ interface ScenarioRule {
   zoneLabel: string;
   triggerDevice: string;
   triggerEvent: string;
-  scheduleType: 'always' | 'custom';
+  scheduleType: 'always' | 'custom' | 'time-points' | 'security-sync';
   timeBlocks?: TimeBlock[];
+  timePoints?: TimePointEntry[];
   notifyRecipients: string[];
   linkedDevicesCount: number;
   isActive: boolean;
@@ -90,6 +103,16 @@ const DEVICE_EVENTS_MAP: Record<string, string[]> = {
 const VALUE_BASED_EVENTS = ['亮度偵測(數值)', '溫度偵測(數值)', '濕度偵測(數值)', '人數閾值告警(數值)'];
 const OPERATORS = ['>', '>=', '<', '<=', '=='];
 const DAYS_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS_OPTIONS = ['日', '一', '二', '三', '四', '五', '六'];
+
+// 定義保全排程產生的具體事件點
+const MOCK_SECURITY_EVENTS = [
+  { id: 'se-1-arm', name: '夜間例行設防', time: '22:00', days: '(一~五)', status: 'armed', statusLabel: '保全啟動' },
+  { id: 'se-1-disarm', name: '夜間例行設防', time: '08:00', days: '(一~五)', status: 'disarmed', statusLabel: '保全解除' },
+  { id: 'se-2-arm', name: '週末全天防護', time: '00:00', days: '(六~日)', status: 'armed', statusLabel: '保全啟動' },
+  { id: 'se-2-disarm', name: '週末全天防護', time: '23:59', days: '(六~日)', status: 'disarmed', statusLabel: '保全解除' },
+  { id: 'se-3-arm', name: '節假日特殊排程', time: '手動', days: '(不定期)', status: 'armed', statusLabel: '保全啟動' }
+];
 
 const RECIPIENTS = [
   { id: 'shelby', name: 'Shelby', email: 'shelby@sks.com.tw' },
@@ -100,7 +123,7 @@ const RECIPIENTS = [
 const CAMERA_LIST = [
   { id: 'cam_bullet', name: '門口槍型攝影機' },
   { id: 'cam_ptz', name: '大廳擺頭機' },
-  { id: 'cam_starlight', name: '倉庫星光攝影機' }
+  { id: 'cam_starlight', name: '倉庫攝影機' }
 ];
 
 const GATE_LIST = [
@@ -515,23 +538,48 @@ const EventManagementView: React.FC = () => {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
 
   // Schedule States (New)
-  const [scheduleType, setScheduleType] = useState<'always' | 'custom'>('custom');
+  const [scheduleType, setScheduleType] = useState<'always' | 'custom' | 'time-points' | 'security-sync'>('custom');
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
+  const [timePoints, setTimePoints] = useState<TimePointEntry[]>([
+    { id: 'tp-1', time: '07:00', days: ['一', '二', '三', '四', '五'] }
+  ]);
   const [saveAsPredefined, setSaveAsPredefined] = useState(false);
+  const [selectedSecurityEventIds, setSelectedSecurityEventIds] = useState<Set<string>>(new Set());
 
   // Trigger Logic States
+  const [triggerSourceType, setTriggerSourceType] = useState<'device' | 'time'>('device');
   const [triggerCondition, setTriggerCondition] = useState<TriggerCondition>(
     { id: 'initial', device: '', event: '', operator: '>', value: '' }
   );
 
   // Action States
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([]);
+  const [webhookUrl, setWebhookUrl] = useState('');
   const [selectedNotifyMediums, setSelectedNotifyMediums] = useState<string[]>(['email', 'app']);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>(['shelby']);
   
   const [linkedDevices, setLinkedDevices] = useState<LinkedDevice[]>([
     { id: 'init-link-1', type: 'camera', deviceId: '', action: 'record_on', delay: '0' }
   ]);
+
+  // --- Dependency Logic Between Left and Middle ---
+  useEffect(() => {
+    if (scheduleType === 'time-points' || scheduleType === 'security-sync') {
+      setTriggerSourceType('time');
+    } else {
+      if (triggerSourceType === 'time') {
+        setTriggerSourceType('device');
+      }
+    }
+  }, [scheduleType]);
+
+  const isTriggerSourceDisabled = (type: 'device' | 'time') => {
+    if (scheduleType === 'time-points' || scheduleType === 'security-sync') {
+      return type !== 'time';
+    } else {
+      return type === 'time';
+    }
+  };
 
   // --- Computations ---
   const sites = useMemo(() => {
@@ -562,8 +610,17 @@ const EventManagementView: React.FC = () => {
   const currentHostLabel = useMemo(() => hosts.find(h => h.id === selectedHostId)?.label || '', [hosts, selectedHostId]);
   const currentZoneLabel = useMemo(() => zones.find(z => z.id === selectedZoneId)?.label || '', [zones, selectedZoneId]);
 
-  const isStep1Valid = !!selectedZoneId && (scheduleType === 'always' || timeBlocks.length > 0);
-  const isStep2Valid = !!(triggerCondition.device && triggerCondition.event);
+  const selectedSecurityEvents = useMemo(() => 
+    MOCK_SECURITY_EVENTS.filter(e => selectedSecurityEventIds.has(e.id))
+  , [selectedSecurityEventIds]);
+
+  const isStep1Valid = !!selectedZoneId && (
+    scheduleType === 'always' || 
+    (scheduleType === 'custom' && timeBlocks.length > 0) || 
+    (scheduleType === 'time-points' && timePoints.length > 0) ||
+    (scheduleType === 'security-sync' && selectedSecurityEventIds.size > 0)
+  );
+  const isStep2Valid = triggerSourceType === 'time' ? true : !!(triggerCondition.device && triggerCondition.event);
   const isStep3Enabled = isStep1Valid && isStep2Valid;
 
   // --- Handlers ---
@@ -578,6 +635,39 @@ const EventManagementView: React.FC = () => {
   const addLinkedDevice = () => setLinkedDevices([...linkedDevices, { id: Date.now().toString(), type: 'camera', deviceId: '', action: 'record_on', delay: '0' }]);
   const removeLinkedDevice = (id: string) => linkedDevices.length > 1 && setLinkedDevices(linkedDevices.filter(d => d.id !== id));
   const updateLinkedDevice = (id: string, updates: Partial<LinkedDevice>) => setLinkedDevices(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+
+  const addTimePoint = () => {
+    if (timePoints.length >= 10) return;
+    setTimePoints([...timePoints, { id: Date.now().toString(), time: '09:00', days: ['一', '二', '三', '四', '五'] }]);
+  };
+
+  const removeTimePoint = (id: string) => {
+    if (timePoints.length <= 1) return;
+    setTimePoints(timePoints.filter(tp => tp.id !== id));
+  };
+
+  const updateTimePoint = (id: string, updates: Partial<TimePointEntry>) => {
+    setTimePoints(prev => prev.map(tp => tp.id === id ? { ...tp, ...updates } : tp));
+  };
+
+  const toggleDayInTimePoint = (tpId: string, day: string) => {
+    setTimePoints(prev => prev.map(tp => {
+      if (tp.id === tpId) {
+        const nextDays = tp.days.includes(day) ? tp.days.filter(d => d !== day) : [...tp.days, day];
+        return { ...tp, days: nextDays };
+      }
+      return tp;
+    }));
+  };
+
+  const toggleSecurityEventId = (id: string) => {
+    setSelectedSecurityEventIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const toggleScenarioActive = (id: string) => {
     setScenarios(prev => prev.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
@@ -626,7 +716,7 @@ const EventManagementView: React.FC = () => {
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block ml-1">情境名稱</label>
-                    <input type="text" placeholder="例如：機房高溫連動錄影..." value={newEventName} onChange={(e) => setNewEventName(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-2xl py-4 px-6 text-base font-bold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-800 shadow-inner" />
+                    <input type="text" placeholder="例如：每日定時開啟鐵捲門..." value={newEventName} onChange={(e) => setNewEventName(e.target.value)} className="w-full bg-[#050914] border border-slate-700 rounded-2xl py-4 px-6 text-base font-bold text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-800 shadow-inner" />
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-2"><MapIcon size={14} className="text-blue-400" /><label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block ml-1">連動區域選擇</label></div>
@@ -651,38 +741,42 @@ const EventManagementView: React.FC = () => {
               <div className="pt-10 border-t border-slate-800/50 space-y-8">
                 <h3 className="text-xl font-black text-white tracking-tighter flex items-center gap-3"><CalendarClock size={20} className="text-blue-500" /> 情境執行排程</h3>
                 
-                <div className="flex items-center gap-6 mb-6 bg-black/20 p-3 rounded-3xl border border-slate-800/50 w-fit">
-                  <label className="flex items-center gap-3 cursor-pointer group px-3">
-                    <div className="relative">
-                      <input 
-                        type="radio" 
-                        name="schedType" 
-                        checked={scheduleType === 'always'} 
-                        onChange={() => setScheduleType('always')}
-                        className="sr-only peer"
-                      />
-                      <div className="w-5 h-5 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 transition-all flex items-center justify-center">
-                         <div className="w-2.5 h-2.5 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
+                <div className="flex flex-col gap-3 mb-6 bg-black/20 p-4 rounded-[2rem] border border-slate-800/50 w-full overflow-hidden">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer group py-1">
+                      <input type="radio" name="schedType" checked={scheduleType === 'always'} onChange={() => setScheduleType('always')} className="sr-only peer" />
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 flex items-center justify-center">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
                       </div>
-                    </div>
-                    <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${scheduleType === 'always' ? 'text-white' : 'text-slate-500 group-hover:text-slate-400'}`}>永遠啟動</span>
-                  </label>
+                      <span className={`text-sm font-black uppercase tracking-tighter ${scheduleType === 'always' ? 'text-white' : 'text-slate-500'}`}>永遠啟動</span>
+                    </label>
 
-                  <label className="flex items-center gap-3 cursor-pointer group px-3">
-                    <div className="relative">
-                      <input 
-                        type="radio" 
-                        name="schedType" 
-                        checked={scheduleType === 'custom'} 
-                        onChange={() => setScheduleType('custom')}
-                        className="sr-only peer"
-                      />
-                      <div className="w-5 h-5 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 transition-all flex items-center justify-center">
-                         <div className="w-2.5 h-2.5 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
+                    <label className="flex items-center gap-2 cursor-pointer group py-1">
+                      <input type="radio" name="schedType" checked={scheduleType === 'custom'} onChange={() => setScheduleType('custom')} className="sr-only peer" />
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 flex items-center justify-center">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
                       </div>
-                    </div>
-                    <span className={`text-[11px] font-black uppercase tracking-widest transition-colors ${scheduleType === 'custom' ? 'text-white' : 'text-slate-500 group-hover:text-slate-400'}`}>自訂時段</span>
-                  </label>
+                      <span className={`text-sm font-black uppercase tracking-tighter ${scheduleType === 'custom' ? 'text-white' : 'text-slate-500'}`}>自訂時段</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer group py-1">
+                      <input type="radio" name="schedType" checked={scheduleType === 'time-points'} onChange={() => setScheduleType('time-points')} className="sr-only peer" />
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 flex items-center justify-center">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
+                      </div>
+                      <span className={`text-sm font-black uppercase tracking-tighter ${scheduleType === 'time-points' ? 'text-white' : 'text-slate-500'}`}>到點執行模式</span>
+                    </label>
+                  </div>
+                  
+                  <div className="pt-2 border-t border-slate-800/50 mt-1">
+                    <label className="flex items-center gap-2 cursor-pointer group py-1">
+                      <input type="radio" name="schedType" checked={scheduleType === 'security-sync'} onChange={() => setScheduleType('security-sync')} className="sr-only peer" />
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 flex items-center justify-center">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
+                      </div>
+                      <span className={`text-sm font-black uppercase tracking-tighter ${scheduleType === 'security-sync' ? 'text-white' : 'text-slate-500'}`}>執行於保全啟動或解除時</span>
+                    </label>
+                  </div>
                 </div>
 
                 {scheduleType === 'custom' && (
@@ -695,9 +789,94 @@ const EventManagementView: React.FC = () => {
                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${saveAsPredefined ? 'bg-blue-600 border-blue-500' : 'bg-slate-800 border-slate-700 group-hover:border-slate-600'}`}>
                           {saveAsPredefined && <Check size={14} className="text-white" strokeWidth={4} />}
                        </div>
-                       <label className={`text-[11px] font-black uppercase tracking-widest cursor-pointer transition-colors ${saveAsPredefined ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`}>儲存為預定義排程</label>
+                       <label className={`text-[11px] font-black uppercase tracking-widest cursor-pointer transition-colors ${saveAsPredefined ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`}>儲存為預定義排程模板</label>
                     </div>
                   </div>
+                )}
+
+                {scheduleType === 'time-points' && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                      {timePoints.map((tp, idx) => (
+                        <div key={tp.id} className="p-5 bg-slate-900/60 border border-slate-800 rounded-3xl relative group shadow-inner">
+                          <div className="flex items-center justify-between mb-4">
+                             <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                                <Clock size={14}/> 時間點 {idx + 1}
+                             </div>
+                             {timePoints.length > 1 && (
+                               <button onClick={() => removeTimePoint(tp.id)} className="p-1.5 text-slate-700 hover:text-red-400 transition-colors">
+                                  <Trash2 size={14} />
+                                </button>
+                             )}
+                          </div>
+                          <div className="space-y-4">
+                             <input 
+                                type="time" 
+                                value={tp.time} 
+                                onChange={(e) => updateTimePoint(tp.id, { time: e.target.value })}
+                                className="w-full bg-black/40 border border-slate-700 rounded-xl py-3 px-4 text-lg font-mono font-black text-white focus:border-blue-500 outline-none [color-scheme:dark]" 
+                             />
+                             <div className="flex flex-wrap gap-1.5">
+                                {DAYS_OPTIONS.map(day => (
+                                  <button 
+                                    key={day}
+                                    onClick={() => toggleDayInTimePoint(tp.id, day)}
+                                    className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all border ${tp.days.includes(day) ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-[#050914] border-slate-800 text-slate-600 hover:text-slate-400'}`}
+                                  >
+                                    {day}
+                                  </button>
+                                ))}
+                             </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {timePoints.length < 10 && (
+                      <button onClick={addTimePoint} className="w-full py-4 border-2 border-dashed border-slate-800 rounded-2xl text-slate-600 hover:text-blue-500 hover:border-blue-900/40 transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest bg-black/20 group">
+                         <Plus size={16} className="group-hover:scale-110 transition-transform" /> 新增執行時間組合 ({timePoints.length}/10)
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {scheduleType === 'security-sync' && (
+                   <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="space-y-4">
+                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-1 flex items-center gap-2">
+                            <Shield size={14} className="text-blue-500"/> 選取欲關聯之保全動作點 (複選)
+                         </label>
+                         <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
+                            {MOCK_SECURITY_EVENTS.map(se => (
+                               <label 
+                                 key={se.id}
+                                 className={`w-full flex items-start gap-4 p-4 rounded-2xl border transition-all cursor-pointer group ${selectedSecurityEventIds.has(se.id) ? 'bg-blue-600/10 border-blue-500 shadow-xl' : 'bg-black/20 border-slate-800 hover:border-slate-700'}`}
+                               >
+                                  <div className="pt-0.5">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={selectedSecurityEventIds.has(se.id)} 
+                                      onChange={() => toggleSecurityEventId(se.id)} 
+                                      className="sr-only peer"
+                                    />
+                                    <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${selectedSecurityEventIds.has(se.id) ? 'bg-blue-600 border-blue-500' : 'bg-slate-900 border-slate-700'}`}>
+                                       {selectedSecurityEventIds.has(se.id) && <Check size={12} className="text-white" strokeWidth={4} />}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1 flex flex-col gap-1 min-w-0">
+                                     <div className="flex justify-between items-center">
+                                        <span className={`text-xs font-black truncate ${selectedSecurityEventIds.has(se.id) ? 'text-white' : 'text-slate-300'}`}>{se.name} {se.time}</span>
+                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${se.status === 'armed' ? 'bg-emerald-900/30 text-emerald-500 border-emerald-800' : 'bg-blue-900/30 text-blue-500 border-blue-800'}`}>{se.statusLabel}</span>
+                                     </div>
+                                     <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest italic">{se.days}</span>
+                                  </div>
+                               </label>
+                            ))}
+                         </div>
+                      </div>
+                      <p className="text-[9px] text-slate-600 font-bold leading-relaxed px-2 italic border-t border-slate-800/50 pt-4">
+                         * 此模式下，當系統執行上述所勾選的任一保全動作排程時，皆會自動連動執行本自訂情境。
+                      </p>
+                   </div>
                 )}
               </div>
             </div>
@@ -707,45 +886,107 @@ const EventManagementView: React.FC = () => {
             <h3 className="text-xl font-black text-white tracking-tighter mb-8 flex items-center gap-3"><Database size={20} className="text-blue-500" /> 觸發條件邏輯</h3>
             <div className="flex-1 space-y-6 overflow-y-auto custom-scrollbar pr-2 max-h-[850px]">
               {selectedZoneId ? (
-                <div className="space-y-5">
-                  <div className="p-8 bg-[#050914] border border-slate-800 rounded-[2.5rem] relative animate-in zoom-in-95 duration-200 group shadow-inner">
-                    <div className="flex justify-between items-center mb-8">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">唯一觸發條件 (Event Source)</span>
-                    </div>
-                    <div className="space-y-8">
-                      <div className="space-y-2">
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">選擇設備類型</span>
-                        <select value={triggerCondition.device} onChange={(e) => updateCondition('device', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-4 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 appearance-none shadow-xl">
-                          <option value="">選擇設備...</option>
-                          {TRIGGER_DEVICES.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
+                <div className="space-y-6">
+                  {/* Styled Radio Group Switcher */}
+                  <div className="flex flex-wrap items-center gap-3 mb-2 bg-black/20 p-2 rounded-3xl border border-slate-800/50 w-full overflow-hidden">
+                    <label className={`flex items-center gap-2 cursor-pointer group px-2 py-2 transition-all ${isTriggerSourceDisabled('device') ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
+                      <input 
+                        type="radio" 
+                        name="trigType" 
+                        checked={triggerSourceType === 'device'} 
+                        onChange={() => setTriggerSourceType('device')} 
+                        className="sr-only peer" 
+                        disabled={isTriggerSourceDisabled('device')}
+                      />
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 flex items-center justify-center">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
                       </div>
-                      <div className="space-y-2">
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">選擇觸發事件</span>
-                        <select value={triggerCondition.event} disabled={!triggerCondition.device} onChange={(e) => updateCondition('event', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-4 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 disabled:opacity-30 appearance-none shadow-xl">
-                          <option value="">選擇事件...</option>
-                          {triggerCondition.device && DEVICE_EVENTS_MAP[triggerCondition.device].map(ev => <option key={ev} value={ev}>{ev}</option>)}
-                        </select>
-                      </div>
+                      <span className={`text-sm font-black uppercase tracking-tighter ${triggerSourceType === 'device' ? 'text-white' : 'text-slate-500'}`}>設備條件</span>
+                    </label>
 
-                      {triggerCondition.event && VALUE_BASED_EVENTS.includes(triggerCondition.event) && (
-                        <div className="grid grid-cols-2 gap-4 pt-4 animate-in slide-in-from-top-4">
-                          <div className="space-y-2">
-                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">運算子</span>
-                              <select value={triggerCondition.operator} onChange={(e) => updateCondition('operator', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-3.5 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 appearance-none shadow-xl">
-                                {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
-                              </select>
-                          </div>
-                          <div className="space-y-2">
-                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">臨界數值</span>
-                              <input 
-                                type="text" placeholder="輸入值..." value={triggerCondition.value} onChange={(e) => updateCondition('value', e.target.value)}
-                                className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-3.5 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 shadow-xl"
-                              />
-                          </div>
-                        </div>
-                      )}
+                    <label className={`flex items-center gap-2 cursor-pointer group px-2 py-2 transition-all ${isTriggerSourceDisabled('time') ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
+                      <input 
+                        type="radio" 
+                        name="trigType" 
+                        checked={triggerSourceType === 'time'} 
+                        onChange={() => setTriggerSourceType('time')} 
+                        className="sr-only peer" 
+                        disabled={isTriggerSourceDisabled('time')}
+                      />
+                      <div className="w-4 h-4 rounded-full border-2 border-slate-700 peer-checked:border-blue-500 flex items-center justify-center">
+                         <div className="w-2 h-2 bg-blue-500 rounded-full opacity-0 peer-checked:opacity-100 transition-all"></div>
+                      </div>
+                      <span className={`text-sm font-black uppercase tracking-tighter ${triggerSourceType === 'time' ? 'text-white' : 'text-slate-500'}`}>時間條件</span>
+                    </label>
+                  </div>
+
+                  <div className="p-8 bg-[#050914] border border-slate-800 rounded-[2.5rem] relative animate-in zoom-in-95 duration-200 group shadow-inner min-h-[400px]">
+                    <div className="flex justify-between items-center mb-8">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">
+                        {triggerSourceType === 'device' ? '事件感應設定 (Sensor Event)' : '排程連動設定 (Schedule Sync)'}
+                      </span>
                     </div>
+                    
+                    {triggerSourceType === 'device' ? (
+                      <div className="space-y-8 animate-in fade-in">
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">選擇設備類型</span>
+                          <select value={triggerCondition.device} onChange={(e) => updateCondition('device', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-4 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 appearance-none shadow-xl">
+                            <option value="">選擇設備...</option>
+                            {TRIGGER_DEVICES.map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">選擇觸發事件</span>
+                          <select value={triggerCondition.event} disabled={!triggerCondition.device} onChange={(e) => updateCondition('event', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-4 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 disabled:opacity-30 appearance-none shadow-xl">
+                            <option value="">選擇事件...</option>
+                            {triggerCondition.device && DEVICE_EVENTS_MAP[triggerCondition.device].map(ev => <option key={ev} value={ev}>{ev}</option>)}
+                          </select>
+                        </div>
+
+                        {triggerCondition.event && VALUE_BASED_EVENTS.includes(triggerCondition.event) && (
+                          <div className="grid grid-cols-2 gap-4 pt-4 animate-in slide-in-from-top-4">
+                            <div className="space-y-2">
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">運算子</span>
+                                <select value={triggerCondition.operator} onChange={(e) => updateCondition('operator', e.target.value)} className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-3.5 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 appearance-none shadow-xl">
+                                  {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1">臨界數值</span>
+                                <input 
+                                  type="text" placeholder="輸入值..." value={triggerCondition.value} onChange={(e) => updateCondition('value', e.target.value)}
+                                  className="w-full bg-[#111827] border border-slate-700 rounded-2xl py-3.5 px-5 text-sm font-bold text-slate-300 focus:outline-none focus:border-blue-500 shadow-xl"
+                                />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-6 animate-in fade-in">
+                        <div className="p-6 bg-blue-600/5 border border-blue-500/20 rounded-2xl flex flex-col items-center text-center gap-4">
+                           <div className="w-16 h-16 bg-blue-600/10 rounded-full flex items-center justify-center text-blue-500">
+                              {scheduleType === 'security-sync' ? <Shield size={32} /> : <CalendarClock size={32} />}
+                           </div>
+                           <div>
+                              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2">
+                                 {scheduleType === 'security-sync' ? '隨保全動作點同步連動' : '到點定時連動'}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 font-bold leading-relaxed px-2 italic">
+                                 {scheduleType === 'security-sync' 
+                                   ? `系統偵測到左側選取了 ${selectedSecurityEventIds.size} 個「保全同步點」。情境將隨這些排程點執行時同步觸發，不需額外設備觸發。`
+                                   : '系統將自動讀取左側「情境執行排程」中所設定的所有時間點作為連動觸發條件。'}
+                              </p>
+                           </div>
+                        </div>
+                        <div className="px-4 py-3 bg-black/40 rounded-xl border border-slate-800 flex items-center gap-3">
+                           <Info size={14} className="text-blue-400" />
+                           <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                              {scheduleType === 'security-sync' ? '保全同步模式已就緒' : `當前已配置 ${timePoints.length} 個執行點`}
+                           </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -762,9 +1003,10 @@ const EventManagementView: React.FC = () => {
             <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pr-1 max-h-[850px]">
               {isStep3Enabled ? (
                 <div className="space-y-10 pb-6">
-                  <div className="grid grid-cols-2 gap-4 mb-4 shrink-0">
-                    <button onClick={() => toggleOutput('notify')} className={`flex items-center justify-center gap-3 py-4 rounded-2xl border transition-all text-[11px] font-black uppercase tracking-widest shadow-lg ${selectedOutputs.includes('notify') ? 'bg-blue-600 border-blue-500 text-white shadow-blue-900/40' : 'bg-slate-900 border-slate-800 text-slate-500'}`}><CheckCircle2 size={16}/> 通知</button>
-                    <button onClick={() => toggleOutput('device_link')} className={`flex items-center justify-center gap-3 py-4 rounded-2xl border transition-all text-[11px] font-black uppercase tracking-widest shadow-lg ${selectedOutputs.includes('device_link') ? 'bg-blue-600 border-blue-500 text-white shadow-blue-900/40' : 'bg-slate-900 border-slate-800 text-slate-500'}`}><CheckCircle2 size={16}/> 連動設備</button>
+                  <div className="grid grid-cols-3 gap-3 mb-4 shrink-0">
+                    <button onClick={() => toggleOutput('notify')} className={`flex items-center justify-center gap-2 py-4 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg ${selectedOutputs.includes('notify') ? 'bg-blue-600 border-blue-500 text-white shadow-blue-900/40' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>通知設定</button>
+                    <button onClick={() => toggleOutput('device_link')} className={`flex items-center justify-center gap-2 py-4 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg ${selectedOutputs.includes('device_link') ? 'bg-blue-600 border-blue-500 text-white shadow-blue-900/40' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>連動設備</button>
+                    <button onClick={() => toggleOutput('webhook')} className={`flex items-center justify-center gap-2 py-4 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-tighter shadow-lg ${selectedOutputs.includes('webhook') ? 'bg-blue-600 border-blue-500 text-white shadow-blue-900/40' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>WEBHOOK</button>
                   </div>
 
                   {selectedOutputs.includes('notify') && (
@@ -797,6 +1039,25 @@ const EventManagementView: React.FC = () => {
                                </button>
                              ))}
                           </div>
+                       </div>
+                    </div>
+                  )}
+
+                  {selectedOutputs.includes('webhook') && (
+                    <div className="space-y-4 pt-6 border-t border-slate-800/50 animate-in fade-in duration-500">
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                          <Globe size={14} className="text-blue-400" /> Webhook 遠端串接 URL
+                       </label>
+                       <div className="relative group">
+                          <div className="absolute inset-0 bg-blue-600/5 blur-[20px] opacity-0 group-focus-within:opacity-100 transition-opacity rounded-2xl"></div>
+                          <input 
+                            type="text" 
+                            placeholder="https://api.yourdomain.com/endpoint..." 
+                            value={webhookUrl} 
+                            onChange={(e) => setWebhookUrl(e.target.value)} 
+                            className="w-full bg-[#050914] border border-slate-700 rounded-2xl py-4 px-6 text-sm font-bold text-blue-400 focus:outline-none focus:border-blue-500 placeholder:text-slate-800 shadow-inner relative z-10" 
+                          />
+                          <Link2 size={16} className="absolute right-5 top-4 text-slate-700" />
                        </div>
                     </div>
                   )}
@@ -871,7 +1132,7 @@ const EventManagementView: React.FC = () => {
 
                                   {showDelay && (
                                     <div className="space-y-3 pt-2 animate-in fade-in">
-                                      <div className="flex justify-between items-center text-[10px] font-black">
+                                      <div className="flex items-center justify-between text-[10px] font-black">
                                          <span className="text-slate-600 uppercase tracking-widest flex items-center gap-2"><Timer size={14}/> 延時執行 (秒)</span>
                                          <span className="text-blue-400 font-mono text-xs">{link.delay}s</span>
                                       </div>
@@ -925,17 +1186,25 @@ const EventManagementView: React.FC = () => {
                          <div className="flex justify-between items-center"><span className="text-xs text-slate-600 font-black uppercase tracking-widest">情境規則名稱</span><span className="text-base font-black text-white italic">{newEventName || '未命名情境'}</span></div>
                          <div className="flex justify-between items-center"><span className="text-xs text-slate-600 font-black uppercase tracking-widest">部署範圍</span><span className="text-sm font-black text-slate-300">{currentSiteLabel} > {currentHostLabel} > {currentZoneLabel}</span></div>
                          <div className="h-px bg-slate-800/50"></div>
-                         <div className="flex justify-between items-center"><span className="text-xs text-slate-600 font-black uppercase tracking-widest">排程模式</span><span className="text-[10px] font-black text-blue-400 bg-blue-900/20 px-4 py-1.5 rounded-full border border-blue-800 uppercase tracking-widest shadow-xl">{scheduleType === 'always' ? '永遠啟動 (ALWAYS)' : '自訂時段 (CUSTOM)'}</span></div>
-                         {scheduleType === 'custom' && (
-                           <div className="flex flex-col gap-4 pt-2">
-                              <span className="text-xs text-slate-600 font-black uppercase tracking-widest">生效自訂時段 (Active Slots)</span>
-                              <div className="flex flex-wrap gap-2">
-                                {timeBlocks.map(tb => (
-                                  <span key={tb.id} className="bg-blue-600/10 border border-blue-500/30 text-[10px] font-black text-blue-200 px-4 py-2 rounded-xl shadow-lg">
-                                    {DAYS_LABELS[tb.day]} {formatMinutesToTime(tb.startMinutes)} - {formatMinutesToTime(tb.endMinutes)}
-                                  </span>
+                         <div className="flex justify-between items-center">
+                            <span className="text-xs text-slate-600 font-black uppercase tracking-widest">排程模式</span>
+                            <span className="text-[10px] font-black text-blue-400 bg-blue-900/20 px-4 py-1.5 rounded-full border border-blue-800 uppercase tracking-widest shadow-xl">
+                              {scheduleType === 'always' ? '永遠啟動 (ALWAYS)' : scheduleType === 'custom' ? '自訂時段 (CUSTOM)' : scheduleType === 'security-sync' ? '保全同步連動 (SECURITY)' : '到點執行模式 (POINTS)'}
+                            </span>
+                         </div>
+                         {scheduleType === 'security-sync' && (
+                           <div className="flex flex-col gap-3 p-4 bg-blue-600/5 border border-blue-500/20 rounded-2xl">
+                             <div className="flex items-center gap-3">
+                               <Shield size={16} className="text-blue-500" />
+                               <span className="text-[10px] font-black text-slate-300 uppercase">關連保全動作點 ({selectedSecurityEventIds.size})</span>
+                             </div>
+                             <div className="flex flex-wrap gap-2">
+                                {selectedSecurityEvents.map(se => (
+                                   <span key={se.id} className="text-[9px] font-black text-blue-400 bg-blue-900/20 px-3 py-1 rounded-lg border border-blue-800/40">
+                                      {se.name} {se.time} ({se.statusLabel})
+                                   </span>
                                 ))}
-                              </div>
+                             </div>
                            </div>
                          )}
                       </div>
@@ -948,7 +1217,13 @@ const EventManagementView: React.FC = () => {
                             <div className="p-3 bg-orange-500/10 text-orange-400 rounded-2xl border border-orange-500/20"><Cpu size={24}/></div>
                             <div className="flex flex-col gap-1">
                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">EVENT TRIGGER</span>
-                               <span className="text-sm font-black text-slate-200">{triggerCondition.device} : {triggerCondition.event} {VALUE_BASED_EVENTS.includes(triggerCondition.event) ? `(${triggerCondition.operator} ${triggerCondition.value})` : ''}</span>
+                               <span className="text-sm font-black text-slate-200">
+                                  {scheduleType === 'security-sync' 
+                                    ? `隨上述 ${selectedSecurityEventIds.size} 個保全動作同步觸發`
+                                    : triggerSourceType === 'time' 
+                                      ? '到點執行模式 (Time Point Mode)' 
+                                      : `${triggerCondition.device} : ${triggerCondition.event}`}
+                               </span>
                             </div>
                          </div>
                       </div>
@@ -971,6 +1246,19 @@ const EventManagementView: React.FC = () => {
                                  <div className="flex items-center gap-4 text-slate-500 uppercase tracking-widest"><UserCheck size={18}/><span className="text-[10px] font-black">通知對象</span></div>
                                  <span className="text-sm font-black text-white italic">{selectedRecipients.map(id => RECIPIENTS.find(r => r.id === id)?.name).join(', ')}</span>
                               </div>
+                           </div>
+                         )}
+
+                         {selectedOutputs.includes('webhook') && (
+                           <div className="bg-[#050914] p-8 rounded-[2.5rem] border border-slate-800 flex items-center justify-between shadow-inner">
+                              <div className="flex items-center gap-5">
+                                 <div className="p-3 bg-blue-600/10 text-blue-400 rounded-2xl border border-blue-500/20"><Globe size={20}/></div>
+                                 <div className="flex flex-col gap-1">
+                                    <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">WEBHOOK URL</span>
+                                    <span className="text-xs font-mono font-bold text-white truncate max-w-[300px]">{webhookUrl || '未設定網址'}</span>
+                                 </div>
+                              </div>
+                              <div className="px-3 py-1 bg-green-900/20 text-green-500 text-[9px] font-black border border-green-800 rounded">READY</div>
                            </div>
                          )}
 
@@ -1013,7 +1301,6 @@ const EventManagementView: React.FC = () => {
 
         {deleteConfirmId && (
           <div className="fixed inset-0 z-[3100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
-             {/* Fix: Corrected invalid max-md to max-w-md to ensure proper Tailwind rendering and avoid potential parsing confusion. */}
              <div className="bg-[#111827] border border-slate-700 rounded-[3rem] shadow-[0_20px_80px_rgba(0,0,0,0.9)] p-12 max-w-md w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
                 <div className="w-24 h-24 bg-red-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-red-500/20 shadow-inner">
                    <AlertTriangle className="text-red-500" size={56} />
@@ -1076,7 +1363,9 @@ const EventManagementView: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-8 py-6 text-center">
-                   <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-400/10 px-4 py-1.5 rounded-lg border border-blue-500/20 shadow-xl">{scenario.scheduleType}</span>
+                   <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-400/10 px-4 py-1.5 rounded-lg border border-blue-500/20 shadow-xl">
+                    {scenario.scheduleType === 'time-points' ? 'POINTS' : scenario.scheduleType === 'security-sync' ? 'SECURITY' : scenario.scheduleType}
+                   </span>
                 </td>
                 <td className="px-8 py-6">
                   <div className="flex flex-col gap-2">
@@ -1155,24 +1444,6 @@ const EventManagementView: React.FC = () => {
             </p>
          </div>
       </div>
-
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-[3100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
-           {/* Fix: Corrected invalid max-md to max-w-md to ensure proper Tailwind rendering and avoid potential parsing confusion. */}
-           <div className="bg-[#111827] border border-slate-700 rounded-[3rem] shadow-[0_20px_80px_rgba(0,0,0,0.9)] p-12 max-w-md w-full ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
-              <div className="w-24 h-24 bg-red-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-red-500/20 shadow-inner">
-                 <AlertTriangle className="text-red-500" size={56} />
-              </div>
-              <h2 className="text-3xl font-black text-white mb-3 uppercase italic tracking-tighter">確定刪除規則？</h2>
-              <p className="text-base text-slate-500 mb-10 leading-relaxed font-medium">此操作將永久移除此項自訂情境連動規則，且無法復原。您確定要繼續嗎？</p>
-              
-              <div className="grid grid-cols-2 gap-6">
-                 <button onClick={() => deleteScenario(deleteConfirmId)} className="py-5 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-red-900/40 transition-all active:scale-95">確認刪除</button>
-                 <button onClick={() => setDeleteConfirmId(null)} className="py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-sm uppercase tracking-widest border border-slate-700 transition-all active:scale-95">返回</button>
-              </div>
-           </div>
-        </div>
-      )}
     </div>
   );
 };
