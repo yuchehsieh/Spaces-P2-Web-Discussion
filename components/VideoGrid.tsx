@@ -63,7 +63,9 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  ListRestart
+  ListRestart,
+  Moon,
+  Timer
 } from 'lucide-react';
 
 // --- Import Site Specific Tabs ---
@@ -82,6 +84,7 @@ import SpaceFlowTrends from './SpaceFlowTrends';
 import SpaceHeatTrends from './SpaceHeatTrends';
 import SpaceCoordinateMap from './SpaceCoordinateMap';
 import TriggerHistory from './TriggerHistory';
+import PeriodHistory from './PeriodHistory';
 
 // --- Import New Zone Specific Content ---
 import ZoneDetailView from './ZoneDetailView';
@@ -134,7 +137,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   
   const [now, setNow] = useState(new Date());
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60000); 
+    const timer = setInterval(() => setNow(new Date()), 1000); // 為了時段計時，改為每秒更新
     return () => clearInterval(timer);
   }, []);
 
@@ -170,10 +173,15 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     }
 
     const tabs = [];
-    const hasTriggerHistory = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => detailModalSlot.label.includes(kw));
-    if (hasTriggerHistory) {
+    const isPeriodButton = detailModalSlot.label.includes('多功能按鈕') && detailModalSlot.label.includes('時段');
+    const isNormalTrigger = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => detailModalSlot.label.includes(kw)) && !isPeriodButton;
+
+    if (isPeriodButton) {
+      tabs.push({ id: 'period_history', label: '時段紀錄', icon: <HistoryIcon size={14}/> });
+    } else if (isNormalTrigger) {
       tabs.push({ id: 'trigger_history', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
     }
+
     if (detailModalSlot.label.includes('空間偵測器')) {
         tabs.push({ id: 'coordinate_map', label: '座標圖', icon: <Crosshair size={14}/> });
     }
@@ -182,6 +190,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     } else if (detailModalSlot.label.includes('空間偵測器')) {
         tabs.push({ id: 'space_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
     }
+    
     tabs.push(
       { id: 'security_info', label: '保全資訊', icon: <Shield size={14}/> },
       { id: 'scenario_info', label: '情境資訊', icon: <Zap size={14}/> },
@@ -230,7 +239,6 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       }
       node.children?.forEach(traverse);
     };
-    // 修正：這裡應該使用 detailModalSlot.id 而非未定義的 zoneId
     const zoneNode = findNode(SITE_TREE_DATA, detailModalSlot.id);
     if (zoneNode) traverse(zoneNode);
     return devices;
@@ -303,10 +311,14 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       setActiveDetailTab('site_daily_overview');
     } else if (slot.nodeType === 'zone') {
       setActiveDetailTab('zone_main'); 
-      setActiveZoneSubTab('schedule'); // 配合移除原 TAB1，預設改為顯示保全時序
+      setActiveZoneSubTab('schedule');
     } else {
+      const isPeriodButton = slot.label.includes('多功能按鈕') && slot.label.includes('時段');
       const isTriggerType = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => slot.label.includes(kw));
-      if (isTriggerType) {
+
+      if (isPeriodButton) {
+        setActiveDetailTab('period_history');
+      } else if (isTriggerType) {
         setActiveDetailTab('trigger_history');
       } else if (slot.label.includes('空間偵測器')) {
         setActiveDetailTab('coordinate_map');
@@ -382,6 +394,55 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   const renderDeviceCard = (data: VideoSlotData) => {
     const isSmall = gridSize >= 9;
     const isTiny = gridSize === 16;
+
+    // --- 特別處理「時段」類型的多功能按鈕 ---
+    if (data.label.includes('多功能按鈕') && data.label.includes('時段')) {
+      const isSleeping = true; // 模擬當前為睡眠中
+      const startTime = new Date(now.getTime() - (6 * 3600 + 42 * 60) * 1000); // 模擬已睡 6小時42分
+      
+      const diff = now.getTime() - startTime.getTime();
+      const h = Math.floor(diff / (1000 * 60 * 60));
+      const m = Math.floor((diff / (1000 * 60)) % 60);
+      const s = Math.floor((diff / 1000) % 60);
+
+      return (
+        <div className={`flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 pb-20 relative overflow-hidden group transition-all ${isSleeping ? 'ring-inset ring-2 ring-indigo-500/30' : ''}`}>
+           <div className="absolute top-10 left-1/2 -translate-x-1/2 flex gap-2">
+              <div className={`px-4 py-1.5 rounded-full flex items-center justify-center border transition-all ${isSleeping ? 'bg-indigo-500/10 border-indigo-500/40 shadow-lg' : 'bg-slate-800 border-slate-700 opacity-60'}`}>
+                 <span className={`text-[10px] font-black uppercase tracking-widest ${isSleeping ? 'text-indigo-400' : 'text-slate-500'}`}>
+                   {isSleeping ? '狀態：睡眠計時中' : '狀態：空閒'}
+                 </span>
+              </div>
+           </div>
+
+           <div className="flex flex-col items-center gap-6 mt-6">
+              <div className="relative">
+                 <div className={`${isSmall ? 'w-24 h-24' : 'w-36 h-36'} rounded-[2.5rem] border-2 transition-all flex items-center justify-center bg-black/40 ${isSleeping ? 'border-indigo-500 shadow-[0_0_40px_rgba(99,102,241,0.2),inset_0_0_20px_rgba(99,102,241,0.1)]' : 'border-white/10'}`}>
+                    {isSleeping ? <Moon size={isSmall ? 40 : 64} className="text-indigo-400 animate-pulse" /> : <Pill size={isSmall ? 40 : 64} className="text-slate-600" />}
+                 </div>
+                 {isSleeping && (
+                   <div className="absolute -bottom-2 -right-2 bg-indigo-600 p-2.5 rounded-xl shadow-2xl border border-indigo-400 ring-4 ring-indigo-900/50">
+                      <Timer size={isSmall ? 14 : 18} className="text-white" />
+                   </div>
+                 )}
+              </div>
+
+              <div className="text-center space-y-2">
+                 <h4 className={`${isSmall ? 'text-lg' : 'text-3xl'} font-black text-white italic tracking-tighter uppercase`}>
+                   {isSleeping ? '睡眠時間' : '多功能按鈕'}
+                 </h4>
+                 {isSleeping && (
+                   <div className="flex items-baseline gap-1.5 justify-center">
+                      <span className={`${isSmall ? 'text-2xl' : 'text-4xl'} font-mono font-black text-indigo-400 tracking-tighter`}>
+                        {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}<span className="text-sm opacity-50 ml-1">:{s.toString().padStart(2, '0')}</span>
+                      </span>
+                   </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      );
+    }
 
     if (data.nodeType === 'zone') {
        const currentDay = now.getDay(); 
@@ -663,11 +724,11 @@ const VideoGrid: React.FC<VideoGridProps> = ({
       );
     }
 
-    const isTriggeredDevice = ['多功能按鈕', 'PIR', '門磁', '緊急按鈕', 'SOS按鈕', 'SOS'].includes(data.label);
+    const isTriggeredDevice = ['多功能按鈕', 'PIR', '門磁', '緊急按鈕', 'SOS按鈕', 'SOS'].some(kw => data.label.includes(kw));
     if (isTriggeredDevice) {
       const isTriggered = data.id.endsWith('1') || data.label.includes('SOS') || data.label.includes('PIR');
       const getSensorIcon = () => {
-        if (data.label === '多功能按鈕') return <Pill size={isSmall ? 32 : 56} />;
+        if (data.label.includes('多功能按鈕')) return <Pill size={isSmall ? 32 : 56} />;
         if (data.label === 'PIR') return <Activity size={isSmall ? 32 : 56} />;
         if (data.label === '門磁') return isTriggered ? <DoorOpen size={isSmall ? 32 : 56} /> : <DoorClosed size={isSmall ? 32 : 56} />;
         return <Bell size={isSmall ? 32 : 56} />;
@@ -845,8 +906,9 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                           {activeDetailTab === 'historical_trends' && <HistoricalTrends />}
                           {activeDetailTab === 'coordinate_map' && <SpaceCoordinateMap />}
                           {activeDetailTab === 'trigger_history' && <TriggerHistory deviceLabel={detailModalSlot.label} />}
+                          {activeDetailTab === 'period_history' && <PeriodHistory deviceLabel={detailModalSlot.label} />}
                           {activeDetailTab === 'space_trends' && (detailModalSlot.label.includes('人流') ? <SpaceFlowTrends /> : <SpaceHeatTrends />)}
-                          {activeDetailTab === 'security_info' && <SecurityInfo onJump={handleJumpToSecurity} />}
+                          {activeDetailTab === 'security_info' && <SecurityInfo onJump={handleJumpToSecurity} deviceLabel={detailModalSlot.label} />}
                           {activeDetailTab === 'scenario_info' && <ScenarioInfo onJump={handleJumpToScenario} />}
                           {activeDetailTab === 'device_info' && <DeviceInfo onJump={handleJumpToDeviceCenter} />}
                         </div>

@@ -28,7 +28,6 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarDays,
-  // Added missing Calendar icon import
   Calendar,
   Globe,
   Link2,
@@ -87,11 +86,12 @@ interface ScenarioRule {
 
 // --- Constants ---
 const TRIGGER_DEVICES = [
-  'Epaper按鈕', '環境偵測器', '空間偵測器', '門磁', '讀卡機', 'WDI', 'SOS緊急按鈕', 'PIR', 'IPCam'
+  '多功能按鈕(次數)', '多功能按鈕(時段)', '環境偵測器', '空間偵測器', '門磁', '讀卡機', 'WDI', 'SOS緊急按鈕', 'PIR', 'IPCam'
 ];
 
 const DEVICE_EVENTS_MAP: Record<string, string[]> = {
-  'Epaper按鈕': ['按鈕觸發(二值)', '開蓋告警(異常)'],
+  '多功能按鈕(次數)': ['按鈕觸發(二值)', '開蓋告警(異常)'],
+  '多功能按鈕(時段)': ['時段起', '時段迄'],
   '環境偵測器': ['亮度偵測(數值)', '溫度偵測(數值)', '濕度偵測(數值)', '水浸告警(二值)', '聲音觸發(二值)', '開蓋告警(異常)'],
   '空間偵測器': ['有人/無人觸發', '人數閾值告警(數值)', '人員進出觸發'],
   '門磁': ['開門觸發(二值)'],
@@ -1004,7 +1004,7 @@ const EventManagementView: React.FC = () => {
 
           <div className="lg:col-span-1 bg-[#111827] border border-slate-800 rounded-[2.5rem] p-8 shadow-xl flex flex-col min-h-full">
             <h3 className="text-xl font-black text-white tracking-tighter mb-8 flex items-center gap-3"><Zap size={20} className="text-blue-500" /> 連動與通知</h3>
-            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pr-1 max-h-[850px]">
+            <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar pr-1 max-h-[850px]">
               {isStep3Enabled ? (
                 <div className="space-y-10 pb-6">
                   <div className="grid grid-cols-3 gap-3 mb-4 shrink-0">

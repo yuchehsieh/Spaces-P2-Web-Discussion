@@ -1,11 +1,33 @@
 import React from 'react';
-import { Shield, CalendarClock, ExternalLink } from 'lucide-react';
+import { Shield, CalendarClock, ExternalLink, ShieldOff, AlertTriangle } from 'lucide-react';
 
 interface SecurityInfoProps {
   onJump?: () => void;
+  deviceLabel?: string;
 }
 
-const SecurityInfo: React.FC<SecurityInfoProps> = ({ onJump }) => {
+const SecurityInfo: React.FC<SecurityInfoProps> = ({ onJump, deviceLabel = "" }) => {
+  const isPeriodMode = deviceLabel.includes('時段');
+
+  if (isPeriodMode) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full animate-in fade-in duration-500 py-10 text-center">
+        <div className="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center border-4 border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)] mb-8">
+           <ShieldOff size={48} className="text-red-500/60" />
+        </div>
+        <h3 className="text-2xl font-black text-white italic tracking-tighter uppercase mb-4">保全功能不支援</h3>
+        <p className="text-slate-500 text-sm font-bold leading-relaxed max-w-sm">
+          此多功能按鈕目前已設定為「<span className="text-blue-400">時段統計模式</span>」。<br/>
+          在此模式下，系統將優先處理時序計時邏輯，不再提供保全連動與設撤防服務。
+        </p>
+        <div className="mt-10 px-6 py-3 bg-slate-800/40 border border-slate-700 rounded-2xl flex items-center gap-3">
+           <AlertTriangle size={16} className="text-amber-500" />
+           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">請透過設備中心切換功能類型</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in duration-500">
       {/* 左側資訊區 */}
