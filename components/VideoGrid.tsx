@@ -58,7 +58,12 @@ import {
   Square as SquareIcon,
   ChevronDown,
   Loader2,
-  Crosshair
+  Crosshair,
+  FolderOpen,
+  Eye,
+  EyeOff,
+  Sparkles,
+  ListRestart
 } from 'lucide-react';
 
 // --- Import Site Specific Tabs ---
@@ -78,6 +83,9 @@ import SpaceHeatTrends from './SpaceHeatTrends';
 import SpaceCoordinateMap from './SpaceCoordinateMap';
 import TriggerHistory from './TriggerHistory';
 
+// --- Import New Zone Specific Content ---
+import ZoneDetailView from './ZoneDetailView';
+
 import { SITE_TREE_DATA } from '../constants';
 import { SiteNode, GridSize, MainNavType } from '../types';
 
@@ -91,32 +99,23 @@ export interface VideoSlotData {
   siteName?: string; 
 }
 
-// 統一且高對比的橘色系比例尺
-const HEATMAP_SCALE = [
-  { range: '0', hex: '#334155', label: '0人' },
-  { range: '1-2', hex: '#fdba74', label: '1-2人' },
-  { range: '3-4', hex: '#f97316', label: '3-4人' },
-  { range: '5-6', hex: '#ea580c', label: '5-6人' },
-  { range: '7-8', hex: '#c2410c', label: '7-8人' },
-  { range: '8+', hex: '#9a3412', label: '8人以上' },
-];
-
-interface VideoGridProps {
+// Added VideoGridProps interface to fix "Cannot find name 'VideoGridProps'" error
+export interface VideoGridProps {
   gridSize: GridSize;
   activeSlots: Record<number, VideoSlotData>;
-  onDropCamera: (index: number, camera: { id: string; label: string; deviceType?: string; nodeType?: string; siteGroup?: string; siteName?: string }) => void;
+  onDropCamera: (index: number, camera: { 
+    id: string; 
+    label: string; 
+    deviceType?: string; 
+    nodeType?: string;
+    siteGroup?: string;
+    siteName?: string;
+  }) => void;
   onRemoveCamera: (index: number) => void;
-  onMoveCamera?: (fromIndex: number, toIndex: number) => void; 
+  onMoveCamera?: (fromIndex: number, toIndex: number) => void;
   onToggleRecording: (index: number) => void;
   onJumpToNav?: (nav: MainNavType, subTab?: string) => void;
 }
-
-const MOCK_CAMERA_IMAGES = [
-  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_1.jpg?raw=true',
-  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_2.jpg?raw=true',
-  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_3.jpg?raw=true',
-  'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_4.jpg?raw=true',
-];
 
 const VideoGrid: React.FC<VideoGridProps> = ({ 
   gridSize, 
@@ -130,6 +129,14 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [detailModalSlot, setDetailModalSlot] = useState<VideoSlotData | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState('');
+  // 追踪分區跳窗內部分頁狀態，預設改為 schedule
+  const [activeZoneSubTab, setActiveZoneSubTab] = useState<string>('schedule');
+  
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000); 
+    return () => clearInterval(timer);
+  }, []);
 
   const [confirmedStatsDevices, setConfirmedStatsDevices] = useState<Set<string>>(new Set()); 
   const [pendingStatsDevices, setPendingStatsDevices] = useState<Set<string>>(new Set());     
@@ -138,43 +145,114 @@ const VideoGrid: React.FC<VideoGridProps> = ({
   const [exportTabs, setExportTabs] = useState<Set<string>>(new Set(['daily', 'cumulative', 'comparison', 'device', 'behavior']));
   const [isExporting, setIsExporting] = useState(false);
 
+  // --- 分區跳窗專屬狀態 (TAB2 Timeline) ---
+  const [selectedZoneDeviceIds, setSelectedZoneDeviceIds] = useState<Set<string>>(new Set());
+  const [showArmedPeriods, setShowArmedPeriods] = useState(true);
+  const [showScenarioPeriods, setShowScenarioPeriods] = useState(false);
+  const [showScenarioTriggers, setShowScenarioTriggers] = useState(false);
+
+  // --- 分區跳窗專屬狀態 (TAB3 Comparison) ---
+  const [statsDurationFilter, setStatsDurationFilter] = useState<Set<string>>(new Set(['armed', 'scenario']));
+  const [statsFrequencyFilter, setStatsFrequencyFilter] = useState<Set<string>>(new Set(['general', 'security', 'scenario']));
+
+  const availableTabs = useMemo(() => {
+    if (!detailModalSlot) return [];
+    if (detailModalSlot.nodeType === 'zone') return [];
+
+    if (detailModalSlot.nodeType === 'site') {
+       return [
+          { id: 'site_daily_overview', label: '當日人流總覽', icon: <LayoutList size={14}/> },
+          { id: 'site_cumulative_analysis', label: '歷史累計趨勢', icon: <BarChart3 size={14}/> },
+          { id: 'site_time_comparison', label: '多時段對比分析', icon: <ArrowLeftRight size={14}/> },
+          { id: 'site_device_comparison', label: '入口貢獻排行', icon: <Monitor size={14}/> },
+          { id: 'site_behavior_profile', label: '行為輪廓特徵', icon: <User size={14}/> }
+       ];
+    }
+
+    const tabs = [];
+    const hasTriggerHistory = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => detailModalSlot.label.includes(kw));
+    if (hasTriggerHistory) {
+      tabs.push({ id: 'trigger_history', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
+    }
+    if (detailModalSlot.label.includes('空間偵測器')) {
+        tabs.push({ id: 'coordinate_map', label: '座標圖', icon: <Crosshair size={14}/> });
+    }
+    if (detailModalSlot.label.includes('環境偵測器')) {
+        tabs.push({ id: 'historical_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
+    } else if (detailModalSlot.label.includes('空間偵測器')) {
+        tabs.push({ id: 'space_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
+    }
+    tabs.push(
+      { id: 'security_info', label: '保全資訊', icon: <Shield size={14}/> },
+      { id: 'scenario_info', label: '情境資訊', icon: <Zap size={14}/> },
+      { id: 'device_info', label: '設備資訊', icon: <Cpu size={14}/> }
+    );
+    return tabs;
+  }, [detailModalSlot]);
+
+  // 取得節點及其子節點的輔助函式
+  const findNode = (nodes: SiteNode[], targetId: string): SiteNode | null => {
+    for (const n of nodes) {
+      if (n.id === targetId) return n;
+      if (n.children) {
+        const res = findNode(n.children, targetId);
+        if (res) return res;
+      }
+    }
+    return null;
+  };
+
   const eligibleStatsDevices = useMemo(() => {
     if (!detailModalSlot || detailModalSlot.nodeType !== 'site') return [];
     const devices: SiteNode[] = [];
-    const findNode = (nodes: SiteNode[], targetId: string): SiteNode | null => {
-      for (const n of nodes) {
-        if (n.id === targetId) return n;
-        if (n.children) {
-          const res = findNode(n.children, targetId);
-          if (res) return res;
-        }
-      }
-      return null;
-    };
-    const traverseForEligible = (node: SiteNode) => {
+    const traverse = (node: SiteNode) => {
       if (node.type === 'device' && node.label.includes('空間偵測器') && node.label.includes('人流')) {
         devices.push(node);
       }
-      node.children?.forEach(traverseForEligible);
+      node.children?.forEach(traverse);
     };
     const siteNode = findNode(SITE_TREE_DATA, detailModalSlot.id);
-    if (siteNode) traverseForEligible(siteNode);
+    if (siteNode) traverse(siteNode);
+    return devices;
+  }, [detailModalSlot]);
+
+  const zoneChildDevices = useMemo(() => {
+    if (!detailModalSlot || detailModalSlot.nodeType !== 'zone') return [];
+    const devices: SiteNode[] = [];
+    const traverse = (node: SiteNode) => {
+      if (node.type === 'device') {
+        const label = node.label.toUpperCase();
+        const isExcluded = label.includes('WEB CAM') || 
+                           label.includes('IPC') || 
+                           label.includes('人流') || 
+                           label.includes('熱度');
+        if (!isExcluded) devices.push(node);
+      }
+      node.children?.forEach(traverse);
+    };
+    // 修正：這裡應該使用 detailModalSlot.id 而非未定義的 zoneId
+    const zoneNode = findNode(SITE_TREE_DATA, detailModalSlot.id);
+    if (zoneNode) traverse(zoneNode);
     return devices;
   }, [detailModalSlot]);
 
   useEffect(() => {
-    if (detailModalSlot?.nodeType === 'site' && eligibleStatsDevices.length > 0) {
+    if (detailModalSlot?.id && detailModalSlot?.nodeType === 'site' && eligibleStatsDevices.length > 0) {
       const allIds = eligibleStatsDevices.map(d => d.id);
       const initialSelection = new Set(allIds);
       setConfirmedStatsDevices(initialSelection);
       setPendingStatsDevices(initialSelection);
     }
-  }, [detailModalSlot?.id, eligibleStatsDevices]);
+    if (detailModalSlot?.id && detailModalSlot?.nodeType === 'zone' && zoneChildDevices.length > 0) {
+      setSelectedZoneDeviceIds(new Set(zoneChildDevices.map(d => d.id)));
+    }
+  }, [detailModalSlot?.id, eligibleStatsDevices, zoneChildDevices]);
 
   const getCameraImage = (id: string) => {
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    return MOCK_CAMERA_IMAGES[Math.abs(hash) % MOCK_CAMERA_IMAGES.length];
+    const index = Math.abs(hash) % 4 + 1;
+    return `https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/mock_camera_${index}.jpg?raw=true`;
   };
 
   const slots = Array.from({ length: gridSize }, (_, i) => i);
@@ -219,50 +297,13 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const availableTabs = useMemo(() => {
-    if (!detailModalSlot) return [];
-    if (detailModalSlot.nodeType === 'site') {
-       return [
-          { id: 'site_daily_overview', label: '當日人流總覽', icon: <LayoutList size={14}/> },
-          { id: 'site_cumulative_analysis', label: '歷史累計趨勢', icon: <BarChart3 size={14}/> },
-          { id: 'site_time_comparison', label: '多時段對比分析', icon: <ArrowLeftRight size={14}/> },
-          { id: 'site_device_comparison', label: '入口貢獻排行', icon: <Monitor size={14}/> },
-          { id: 'site_behavior_profile', label: '行為輪廓特徵', icon: <User size={14}/> }
-       ];
-    }
-    const tabs = [];
-    
-    // 新增：特定設備的「觸發紀錄」分頁
-    const hasTriggerHistory = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => detailModalSlot.label.includes(kw));
-    if (hasTriggerHistory) {
-      tabs.push({ id: 'trigger_history', label: '觸發紀錄', icon: <HistoryIcon size={14}/> });
-    }
-
-    // 空間偵測器專屬：座標圖
-    if (detailModalSlot.label.includes('空間偵測器')) {
-        tabs.push({ id: 'coordinate_map', label: '座標圖', icon: <Crosshair size={14}/> });
-    }
-
-    // 歷史趨勢
-    if (detailModalSlot.label.includes('環境偵測器')) {
-        tabs.push({ id: 'historical_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
-    } else if (detailModalSlot.label.includes('空間偵測器')) {
-        tabs.push({ id: 'space_trends', label: '歷史趨勢', icon: <TrendingUp size={14}/> });
-    }
-    
-    tabs.push(
-      { id: 'security_info', label: '保全資訊', icon: <Shield size={14}/> },
-      { id: 'scenario_info', label: '情境資訊', icon: <Zap size={14}/> },
-      { id: 'device_info', label: '設備資訊', icon: <Cpu size={14}/> }
-    );
-    return tabs;
-  }, [detailModalSlot]);
-
   const openModal = (slot: VideoSlotData) => {
     setDetailModalSlot(slot);
-    // 更新預設顯示分頁邏輯
     if (slot.nodeType === 'site') {
       setActiveDetailTab('site_daily_overview');
+    } else if (slot.nodeType === 'zone') {
+      setActiveDetailTab('zone_main'); 
+      setActiveZoneSubTab('schedule'); // 配合移除原 TAB1，預設改為顯示保全時序
     } else {
       const isTriggerType = ['多功能按鈕', '門磁', 'PIR', 'SOS'].some(kw => slot.label.includes(kw));
       if (isTriggerType) {
@@ -281,6 +322,12 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     const next = new Set(pendingStatsDevices);
     if (next.has(id)) next.delete(id); else next.add(id);
     setPendingStatsDevices(next);
+  };
+
+  const toggleZoneDevice = (id: string) => {
+    const next = new Set(selectedZoneDeviceIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedZoneDeviceIds(next);
   };
 
   const applyStatsDeviceSelection = () => {
@@ -336,6 +383,91 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     const isSmall = gridSize >= 9;
     const isTiny = gridSize === 16;
 
+    if (data.nodeType === 'zone') {
+       const currentDay = now.getDay(); 
+       const currentHourPct = (now.getHours() * 60 + now.getMinutes()) / 1440 * 100;
+
+       return (
+         <div className="flex flex-col h-full w-full bg-[#0a0f1e] text-slate-200 overflow-y-auto custom-scrollbar group">
+            <div className={`flex flex-col justify-between transition-all duration-500 relative min-h-full ${isSmall ? 'p-3' : 'p-6'}`}>
+                <div className="flex items-center justify-between shrink-0 mb-4">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-blue-600/10 text-blue-400 rounded-xl shadow-inner border border-blue-500/20"><FolderOpen size={isSmall ? 14 : 20}/></div>
+                      <div>
+                        <span className={`${isSmall ? 'text-[10px]' : 'text-sm'} font-black italic tracking-tighter uppercase truncate block leading-none`}>{data.label}</span>
+                        <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mt-1 block">ZONE INFRASTRUCTURE</span>
+                      </div>
+                   </div>
+                   <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                      <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">ARMED</span>
+                   </div>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center w-full px-1 py-4">
+                   <div className={`w-full bg-black/30 border border-slate-800/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden ${isTiny ? 'scale-[0.85]' : ''}`}>
+                      <div className="flex justify-between items-center mb-6">
+                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2"><Shield size={12}/> 7X24 SECURITY SCHEDULE</span>
+                         <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-blue-500/20 rounded-full"></div><span className="text-[9px] font-black text-slate-500 uppercase">Armed</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-slate-800 rounded-full"></div><span className="text-[9px] font-black text-slate-500 uppercase">Disarmed</span></div>
+                         </div>
+                      </div>
+                      
+                      <div className="space-y-3.5">
+                        {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, dIdx) => {
+                          const isToday = dIdx === currentDay;
+                          const isWeekday = dIdx >= 1 && dIdx <= 5;
+                          return (
+                            <div key={day} className="flex items-center gap-4 w-full group/row">
+                               <span className={`w-6 text-[9px] font-black transition-colors ${isToday ? 'text-blue-400' : 'text-slate-600 group-hover/row:text-slate-400'}`}>{day}</span>
+                               <div className="flex-1 h-3 bg-slate-900/60 rounded-full relative overflow-hidden flex border border-white/5 transition-all group-hover/row:border-white/10">
+                                  {isWeekday ? (
+                                    <>
+                                      <div className="absolute left-0 w-[33%] h-full bg-blue-500/20 rounded-full"></div>
+                                      <div className="absolute right-0 w-[15%] h-full bg-blue-500/20 rounded-full"></div>
+                                    </>
+                                  ) : (
+                                    <div className="absolute inset-0 bg-blue-500/20"></div>
+                                  )}
+                                  {isToday && (
+                                     <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 shadow-[0_0_12px_rgba(239,68,68,1)] z-10" style={{ left: `${currentHourPct}%` }}>
+                                        <div className="absolute -top-1 -left-[3px] w-2 h-2 bg-red-500 rounded-full ring-2 ring-white/10"></div>
+                                     </div>
+                                  )}
+                               </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="flex justify-between mt-6 pt-4 border-t border-white/5 text-[8px] font-black text-slate-700 uppercase tracking-[0.2em] px-10">
+                         <span>00h</span><span>04h</span><span>08h</span><span>12h</span><span>16h</span><span>20h</span>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="flex justify-between items-end border-t border-white/5 pt-5 shrink-0 mt-4">
+                   <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">DEVICE SYNC</span>
+                      <div className="flex items-center gap-2">
+                         <CheckCircle2 size={12} className="text-emerald-500"/>
+                         <span className="text-[10px] font-black text-white italic tracking-tight">4 HARDWARE CONNECTED</span>
+                      </div>
+                   </div>
+                   <div className="flex flex-col items-end gap-1.5">
+                      <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">NEXT EVENT</span>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                         <Clock size={10} className="text-blue-400"/>
+                         <span className="text-[10px] font-black font-mono text-blue-400 tracking-tighter">22:00 ARM</span>
+                      </div>
+                   </div>
+                </div>
+            </div>
+         </div>
+       );
+    }
+
     if (data.label.includes('空間偵測器') && data.label.includes('人流')) {
       const mockCount = 12; 
       return (
@@ -362,6 +494,14 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
     if (data.label.includes('空間偵測器') && data.label.includes('熱度')) {
       const currentLevel = 2; 
+      const HEATMAP_SCALE = [
+        { range: '0', hex: '#334155', label: '0人' },
+        { range: '1-2', hex: '#fdba74', label: '1-2人' },
+        { range: '3-4', hex: '#f97316', label: '3-4人' },
+        { range: '5-6', hex: '#ea580c', label: '5-6人' },
+        { range: '7-8', hex: '#c2410c', label: '7-8人' },
+        { range: '8+', hex: '#9a3412', label: '8人以上' },
+      ];
       const currentHeat = HEATMAP_SCALE[currentLevel];
       return (
         <div className={`flex h-full w-full bg-[#0a0f1e] relative overflow-hidden transition-all duration-500 ${isSmall ? 'p-3' : 'p-6'} flex-col items-center justify-center`}>
@@ -419,10 +559,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     }
 
     if (data.nodeType === 'site') {
-      const currentHour = 15; // 固定在 15 點以符合附件圖片
+      const currentHour = 15; 
       const avgData = [5, 3, 2, 4, 10, 25, 45, 70, 85, 60, 55, 62, 65, 58, 55, 55, 95, 105, 98, 75, 45, 30, 15, 8];
-      const realTimeVal = 70; // 當前狀態
-      const avgValForCurrentHour = avgData[currentHour]; // 平均狀態 (55)
+      const realTimeVal = 70; 
+      const avgValForCurrentHour = avgData[currentHour]; 
       const isBusierThanAvg = realTimeVal > avgValForCurrentHour;
       const busierPct = Math.round(((realTimeVal - avgValForCurrentHour) / avgValForCurrentHour) * 100);
 
@@ -461,13 +601,10 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                       <div key={idx} className="flex-1 group/bar relative h-full flex flex-col justify-end">
                          {isCurrent ? (
                            <div className="w-full relative h-full flex flex-col justify-end">
-                              {/* 歷史平均：灰色柱狀 (依照附件二) */}
                               <div className="absolute bottom-0 w-full bg-slate-700/60 rounded-t-sm" style={{ height: `${avgHeight}%` }}></div>
-                              {/* 當前狀態：粉色柱狀 (依照附件二) */}
                               <div className="relative w-full bg-[#ff70a0] rounded-t-sm shadow-[0_0_10px_rgba(255,112,160,0.4)]" style={{ height: `${realHeight}%` }}></div>
                            </div>
                          ) : (
-                           // 非當前時段：顯示深藍色平均柱狀 (依照附件一)
                            <div className="w-full rounded-t-sm transition-all duration-500 bg-[#162a5c]" style={{ height: `${avgHeight}%` }}></div>
                          )}
                       </div>
@@ -546,6 +683,34 @@ const VideoGrid: React.FC<VideoGridProps> = ({
     return <div className="flex flex-col items-center justify-center h-full w-full bg-[#0a0f1e] p-6 pb-16 space-y-4"><div className="p-5 bg-white/5 rounded-[2rem] border border-white/10 shadow-2xl"><Cpu size={48} className="text-slate-400" /></div><h4 className="text-xl font-black text-white italic tracking-tight">{data.label}</h4></div>;
   };
 
+  // 全選/全不選 輔助函式
+  const handleSelectAllSecurity = () => {
+    const allDeviceIds = zoneChildDevices.map(d => d.id);
+    if (selectedZoneDeviceIds.size === allDeviceIds.length && showArmedPeriods) {
+       setSelectedZoneDeviceIds(new Set());
+       setShowArmedPeriods(false);
+    } else {
+       setSelectedZoneDeviceIds(new Set(allDeviceIds));
+       setShowArmedPeriods(true);
+    }
+  };
+
+  const handleSelectAllScenario = () => {
+    if (showScenarioPeriods && showScenarioTriggers) {
+      setShowScenarioPeriods(false);
+      setShowScenarioTriggers(false);
+    } else {
+      setShowScenarioPeriods(true);
+      setShowScenarioTriggers(true);
+    }
+  };
+
+  const toggleStatsFilter = (filterSet: Set<string>, setFunc: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) => {
+    const next = new Set(filterSet);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setFunc(next);
+  };
+
   return (
     <div className={`flex-1 grid ${getGridCols()} gap-[1px] bg-slate-800 h-full overflow-hidden p-[1px]`}>
       {slots.map((index) => {
@@ -563,7 +728,7 @@ const VideoGrid: React.FC<VideoGridProps> = ({
                 ) : renderDeviceCard(slotData)}
                 <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-50"><button onClick={(e) => { e.stopPropagation(); onRemoveCamera(index); }} className="w-7 h-7 flex items-center justify-center bg-red-600/90 hover:bg-red-500 text-white rounded-lg shadow-xl"><X size={16} strokeWidth={3} /></button><button onClick={(e) => { e.stopPropagation(); openModal(slotData); }} className="w-7 h-7 flex items-center justify-center bg-blue-600/90 hover:bg-blue-500 text-white rounded-lg shadow-xl"><Info size={16} strokeWidth={3} /></button></div>
                 
-                {slotData.nodeType !== 'site' && (
+                {slotData.nodeType !== 'site' && slotData.nodeType !== 'zone' && (
                    <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 pointer-events-none z-10">
                       {(slotData.siteGroup || slotData.siteName) && (
                         <div className="flex items-center gap-1.5 text-[10px] font-black text-blue-400 uppercase tracking-widest bg-black/80 backdrop-blur-md px-2.5 py-1 rounded border border-white/10 w-fit shadow-2xl">
@@ -583,145 +748,115 @@ const VideoGrid: React.FC<VideoGridProps> = ({
 
       {detailModalSlot && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
-           <div className="relative max-w-[1600px] w-full bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5 animate-in zoom-in-95 duration-200 ring-1 ring-white/5 animate-in zoom-in-95 duration-200">
+           <div className="relative max-w-[1600px] w-full bg-[#111827] border border-slate-700 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-[90vh] ring-1 ring-white/5 animate-in zoom-in-95 duration-200 text-center">
               <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-[#1e293b]/40 shrink-0">
                  <div className="flex items-center gap-5">
-                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">{detailModalSlot.nodeType === 'site' ? <Building2 size={28}/> : <Cpu size={28}/>}</div>
+                    <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-900/40">
+                       {detailModalSlot.nodeType === 'site' ? <Building2 size={28}/> : 
+                        detailModalSlot.nodeType === 'zone' ? <FolderOpen size={28}/> : <Cpu size={28}/>}
+                    </div>
                     <div><h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">{detailModalSlot.label}</h2><p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">SKS Infrastructure Node / UID: {detailModalSlot.id}</p></div>
                  </div>
                  <button onClick={() => setDetailModalSlot(null)} className="p-2 hover:bg-red-500/20 rounded-xl text-slate-500 hover:text-red-500 transition-all"><X size={32} /></button>
               </div>
 
-              <div className="flex bg-black/20 border-b border-slate-800 px-8 shrink-0 overflow-x-auto no-scrollbar justify-between">
-                 <div className="flex">
-                    {availableTabs.map(tab => (
-                    <button key={tab.id} onClick={() => setActiveDetailTab(tab.id)} className={`px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3 transition-all relative whitespace-nowrap ${activeDetailTab === tab.id ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}>{tab.icon} {tab.label}{activeDetailTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>}</button>
-                    ))}
-                 </div>
-              </div>
+              {detailModalSlot.nodeType === 'zone' ? (
+                <div className="flex-1 overflow-hidden flex">
+                   <div className="flex-1 relative overflow-hidden flex flex-col bg-[#0a0f1e]/50">
+                      <ZoneDetailView 
+                        zoneId={detailModalSlot.id} 
+                        zoneLabel={detailModalSlot.label} 
+                        selectedDeviceIds={selectedZoneDeviceIds}
+                        showArmedPeriods={showArmedPeriods}
+                        showScenarioPeriods={showScenarioPeriods}
+                        showScenarioTriggers={showScenarioTriggers}
+                        statsDurationFilter={statsDurationFilter}
+                        statsFrequencyFilter={statsFrequencyFilter}
+                        onTabChange={(tab) => setActiveZoneSubTab(tab)}
+                      />
+                   </div>
+                   {/* 分區專屬側邊過濾器：原 TAB1 已移除，因此在 schedule 或 logs 時皆顯示側邊欄 */}
+                   <div className="w-[380px] border-l border-slate-800 bg-[#0b1121] flex flex-col shrink-0 p-8 overflow-y-auto custom-scrollbar animate-in slide-in-from-right-4 duration-300">
+                      <div className="space-y-10">
+                        {activeZoneSubTab === 'schedule' && (
+                          <div className="space-y-6 text-left">
+                              <button onClick={() => alert("正在下載時序分析圖表...")} className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all mb-6 shadow-xl shadow-blue-900/20 ring-1 ring-white/10"><Download size={18}/> 下載時序報表</button>
+                              <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Settings2 size={18} className="text-blue-500" /><h4 className="text-xs font-black text-white uppercase tracking-widest italic">保全顯示設定</h4></div><button onClick={handleSelectAllSecurity} className="text-[10px] font-black text-blue-500 hover:text-blue-400 uppercase tracking-widest">{selectedZoneDeviceIds.size === zoneChildDevices.length && showArmedPeriods ? '全不選' : '全選'}</button></div>
+                              <button onClick={() => setShowArmedPeriods(!showArmedPeriods)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${showArmedPeriods ? 'bg-blue-600/10 border-blue-500/50 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3 min-w-0">{showArmedPeriods ? <Eye size={16} className="text-blue-400"/> : <EyeOff size={16} className="text-slate-700"/>}<span className={`text-[11px] font-bold truncate ${showArmedPeriods ? 'text-slate-200' : 'text-slate-600'}`}>顯示保全時段</span></div><div className={`w-10 h-5 rounded-full relative transition-all duration-300 ${showArmedPeriods ? 'bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]' : 'bg-slate-800'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${showArmedPeriods ? 'left-6' : 'left-1'}`}></div></div></button>
+                              <div className="space-y-2 border-t border-slate-800 pt-4">{zoneChildDevices.map(dev => (<button key={dev.id} onClick={() => toggleZoneDevice(dev.id)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${selectedZoneDeviceIds.has(dev.id) ? 'bg-blue-600/10 border-blue-500/50 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3 min-w-0"><div className={selectedZoneDeviceIds.has(dev.id) ? 'text-blue-400' : 'text-slate-700'}>{dev.label.includes('門磁') ? <DoorClosed size={16}/> : dev.label.includes('PIR') ? <Activity size={16}/> : <Cpu size={16}/>}</div><span className={`text-[11px] font-bold truncate ${selectedZoneDeviceIds.has(dev.id) ? 'text-slate-200' : 'text-slate-600'}`}>{dev.label}</span></div>{selectedZoneDeviceIds.has(dev.id) ? <CheckSquare size={16} className="text-blue-500" /> : <SquareIcon size={16} className="text-slate-800" />}</button>))}</div>
+                              <div className="pt-8 border-t border-slate-800 space-y-4"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><Sparkles size={16} className="text-indigo-400" /><h4 className="text-[11px] font-black text-indigo-400 uppercase tracking-widest italic">情境顯示設定</h4></div><button onClick={handleSelectAllScenario} className="text-[10px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest">{showScenarioPeriods && showScenarioTriggers ? '全不選' : '全選'}</button></div><button onClick={() => setShowScenarioPeriods(!showScenarioPeriods)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${showScenarioPeriods ? 'bg-indigo-600/10 border-indigo-500/50 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3 min-w-0">{showScenarioPeriods ? <Eye size={16} className="text-indigo-400"/> : <EyeOff size={16} className="text-slate-700"/>}<span className={`text-[11px] font-bold truncate ${showScenarioPeriods ? 'text-slate-200' : 'text-slate-600'}`}>顯示情境時段</span></div><div className={`w-10 h-5 rounded-full relative transition-all duration-300 ${showScenarioPeriods ? 'bg-indigo-600' : 'bg-slate-800'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${showScenarioPeriods ? 'left-6' : 'left-1'}`}></div></div></button><button onClick={() => setShowScenarioTriggers(!showScenarioTriggers)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${showScenarioTriggers ? 'bg-fuchsia-600/10 border-fuchsia-500/50 shadow-lg' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3 min-w-0">{showScenarioTriggers ? <Eye size={16} className="text-fuchsia-400"/> : <EyeOff size={16} className="text-slate-700"/>}<span className={`text-[11px] font-bold truncate ${showScenarioTriggers ? 'text-slate-200' : 'text-slate-600'}`}>顯示情境執行點</span></div><div className={`w-10 h-5 rounded-full relative transition-all duration-300 ${showScenarioTriggers ? 'bg-fuchsia-600' : 'bg-slate-800'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${showScenarioTriggers ? 'left-6' : 'left-1'}`}></div></div></button></div>
+                          </div>
+                        )}
 
-              <div className="flex-1 overflow-hidden flex">
-                 <div className="flex-1 relative overflow-hidden flex flex-col bg-[#0a0f1e]/50">
-                    {isRecalculating && (
-                       <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
-                          <div className="relative w-20 h-20">
-                             <div className="absolute inset-0 border-4 border-blue-500/10 rounded-full"></div>
-                             <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
-                             <div className="absolute inset-0 flex items-center justify-center text-blue-500">
-                                <Cpu size={32} className="animate-pulse" />
-                             </div>
-                          </div>
-                          <div className="text-center space-y-2">
-                             <h4 className="text-xl font-black text-white italic tracking-tighter uppercase">數據重新計算中...</h4>
-                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] animate-pulse">SKS AI Core is processing statistics</p>
-                          </div>
-                          <div className="w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-4">
-                             <div className="h-full bg-blue-600 animate-[progress_1.2s_ease-in-out_infinite]"></div>
-                          </div>
-                       </div>
-                    )}
-                    <div className={`flex-1 overflow-y-auto custom-scrollbar p-10 transition-all duration-700 ${isRecalculating ? 'blur-sm grayscale opacity-50 scale-[0.98]' : ''}`}>
-                       {activeDetailTab === 'site_daily_overview' && <SiteDailyOverview />}
-                       {activeDetailTab === 'site_cumulative_analysis' && <SiteCumulativeAnalysis />}
-                       {activeDetailTab === 'site_time_comparison' && <SiteTimeComparison />}
-                       {activeDetailTab === 'site_device_comparison' && <SiteDeviceComparison />}
-                       {activeDetailTab === 'site_behavior_profile' && <SiteBehaviorProfile onJumpToNav={onJumpToNav} />}
-                       {activeDetailTab === 'historical_trends' && <HistoricalTrends />}
-                       {activeDetailTab === 'coordinate_map' && <SpaceCoordinateMap />}
-                       {activeDetailTab === 'trigger_history' && <TriggerHistory deviceLabel={detailModalSlot.label} />}
-                       {activeDetailTab === 'space_trends' && (
-                         detailModalSlot.label.includes('人流') ? <SpaceFlowTrends /> : <SpaceHeatTrends />
-                       )}
-                       {activeDetailTab === 'security_info' && <SecurityInfo onJump={handleJumpToSecurity} />}
-                       {activeDetailTab === 'scenario_info' && <ScenarioInfo onJump={handleJumpToScenario} />}
-                       {activeDetailTab === 'device_info' && <DeviceInfo onJump={handleJumpToDeviceCenter} />}
-                    </div>
-                 </div>
-
-                 {detailModalSlot.nodeType === 'site' && (
-                    <div className="w-[380px] border-l border-slate-800 bg-[#0b1121] flex flex-col shrink-0 p-8 overflow-y-auto custom-scrollbar">
-                       <div className="space-y-10">
-                          <div className="space-y-6">
-                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                   <Settings2 size={18} className="text-blue-500" />
-                                   <h4 className="text-xs font-black text-white uppercase tracking-widest">統計參與設備設定</h4>
+                        {activeZoneSubTab === 'logs' && (
+                          <div className="space-y-10 animate-in fade-in duration-300 text-left">
+                             <div className="space-y-6">
+                                <div className="flex items-center gap-3"><Clock size={18} className="text-blue-500" /><h4 className="text-xs font-black text-white uppercase tracking-widest italic">時長對比篩選</h4></div>
+                                <div className="space-y-2">
+                                   {[
+                                     { id: 'armed', label: '保全設防總時長', icon: <Shield size={14}/> },
+                                     { id: 'scenario', label: '情境模式總時長', icon: <Zap size={14}/> }
+                                   ].map(item => (
+                                     <button key={item.id} onClick={() => toggleStatsFilter(statsDurationFilter, setStatsDurationFilter, item.id)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${statsDurationFilter.has(item.id) ? 'bg-blue-600/10 border-blue-500/50' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3">{item.icon}<span className="text-[11px] font-bold">{item.label}</span></div>{statsDurationFilter.has(item.id) ? <CheckSquare size={16} className="text-blue-400"/> : <SquareIcon size={16}/>}</button>
+                                   ))}
                                 </div>
-                                {isStatsChanged && (
-                                   <span className="text-[9px] font-black bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 animate-pulse">待更新</span>
-                                )}
                              </div>
-                             <p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">勾選後需點擊下方的「確認套用」按鈕以重新計算 5 個 TAB 的分析數據。</p>
-                             <div className="space-y-2">
-                                {eligibleStatsDevices.length > 0 ? eligibleStatsDevices.map(dev => (
-                                   <button 
-                                      key={dev.id}
-                                      onClick={() => togglePendingDevice(dev.id)}
-                                      className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${pendingStatsDevices.has(dev.id) ? 'bg-blue-600/10 border-blue-500/50 shadow-lg shadow-blue-900/10' : 'bg-black/20 border-slate-800 text-slate-600'}`}
-                                   >
-                                      <div className="flex items-center gap-3 min-w-0">
-                                         <UserSearch size={16} className={pendingStatsDevices.has(dev.id) ? 'text-blue-400' : 'text-slate-700'} />
-                                         <span className={`text-[11px] font-bold truncate ${pendingStatsDevices.has(dev.id) ? 'text-slate-200' : 'text-slate-600'}`}>{dev.label}</span>
-                                      </div>
-                                      {pendingStatsDevices.has(dev.id) ? <CheckSquare size={16} className="text-blue-500" /> : <SquareIcon size={16} className="text-slate-800" />}
-                                   </button>
-                                )) : (
-                                   <div className="py-8 text-center text-[10px] text-slate-700 border border-dashed border-slate-800 rounded-2xl">
-                                      此區域無符合條件的偵測設備
-                                   </div>
-                                )}
+
+                             <div className="space-y-6 border-t border-slate-800 pt-8">
+                                <div className="flex items-center gap-3"><ListRestart size={18} className="text-indigo-500" /><h4 className="text-xs font-black text-white uppercase tracking-widest italic">次數對比篩選</h4></div>
+                                <div className="space-y-2">
+                                   {[
+                                     { id: 'general', label: '一般觸發次數', icon: <Activity size={14}/> },
+                                     { id: 'security', label: '保全觸發次數', icon: <AlertTriangle size={14}/> },
+                                     { id: 'scenario', label: '情境觸發次數', icon: <Sparkles size={14}/> }
+                                   ].map(item => (
+                                     <button key={item.id} onClick={() => toggleStatsFilter(statsFrequencyFilter, setStatsFrequencyFilter, item.id)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${statsFrequencyFilter.has(item.id) ? 'bg-indigo-600/10 border-indigo-500/50' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3">{item.icon}<span className="text-[11px] font-bold">{item.label}</span></div>{statsFrequencyFilter.has(item.id) ? <CheckSquare size={16} className="text-indigo-400"/> : <SquareIcon size={16}/>}</button>
+                                   ))}
+                                </div>
                              </div>
-                             <button 
-                                onClick={applyStatsDeviceSelection}
-                                disabled={!isStatsChanged || isRecalculating}
-                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-2xl border
-                                   ${!isStatsChanged || isRecalculating 
-                                      ? 'bg-slate-800/30 border-slate-800 text-slate-700 cursor-not-allowed' 
-                                      : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-blue-900/40 ring-4 ring-blue-600/10 animate-in zoom-in-95'}
-                                `}
-                             >
-                                {isRecalculating ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18}/> 確認套用選取</>}
-                             </button>
+                             
+                             <p className="text-[10px] text-slate-600 font-bold leading-relaxed italic border-t border-slate-800 pt-6">* 數據由 SKS 雲端運算中心每日自動彙整，統計結果包含已結案與自動偵測紀錄。</p>
                           </div>
-                          <div className="h-px bg-slate-800"></div>
-                          <div className="space-y-6">
-                             <div className="flex items-center gap-3">
-                                <Download size={18} className="text-emerald-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">數據資料匯出設定</h4>
-                             </div>
-                             <p className="text-[10px] text-slate-500 font-medium italic">請選擇欲匯出之分析報表項 (Excel / CSV / PDF)。</p>
-                             <div className="space-y-2">
-                                {[
-                                   { id: 'daily', label: '當日人流總覽 (Daily Overview)' },
-                                   { id: 'cumulative', label: '歷史累計趨勢 (Cumulative)' },
-                                   { id: 'comparison', label: '多時段對比分析 (Comparison)' },
-                                   { id: 'device', label: '入口貢獻排行 (Performance)' },
-                                   { id: 'behavior', label: '行為輪廓特徵 (Behavior)' }
-                                ].map(tab => (
-                                   <button 
-                                      key={tab.id}
-                                      onClick={() => toggleExportTab(tab.id)}
-                                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all ${exportTabs.has(tab.id) ? 'bg-emerald-600/10 border-emerald-500/40' : 'bg-black/10 border-slate-800/50 text-slate-700'}`}
-                                   >
-                                      <span className={`text-[10px] font-black uppercase tracking-tight ${exportTabs.has(tab.id) ? 'text-slate-200' : 'text-slate-700'}`}>{tab.label}</span>
-                                      {exportTabs.has(tab.id) ? <CheckCircle2 size={16} className="text-emerald-500" /> : <div className="w-4 h-4 rounded-full border border-slate-800"></div>}
-                                   </button>
-                                ))}
-                             </div>
-                             <button 
-                                onClick={handleExport}
-                                disabled={isExporting}
-                                className={`w-full py-4 mt-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl
-                                   ${isExporting ? 'bg-slate-800 text-slate-600' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}
-                                `}
-                             >
-                                {isExporting ? <RefreshCw size={18} className="animate-spin" /> : <><Download size={18}/> 執行匯出任務</>}
-                             </button>
-                          </div>
-                       </div>
+                        )}
+                      </div>
+                   </div>
+                </div>
+              ) : (
+                /* 保持非分區原有邏輯 */
+                <>
+                  <div className="flex bg-black/20 border-b border-slate-800 px-8 shrink-0 overflow-x-auto no-scrollbar justify-between">
+                     <div className="flex">
+                        {availableTabs.map(tab => (
+                        <button key={tab.id} onClick={() => setActiveDetailTab(tab.id)} className={`px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-3 transition-all relative whitespace-nowrap ${activeDetailTab === tab.id ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}>{tab.icon} {tab.label}{activeDetailTab === tab.id && <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>}</button>
+                        ))}
+                     </div>
+                  </div>
+                  <div className="flex-1 overflow-hidden flex">
+                    <div className="flex-1 relative overflow-hidden flex flex-col bg-[#0a0f1e]/50 text-left">
+                        {isRecalculating && (
+                          <div className="absolute inset-0 z-50 bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300"><div className="relative w-20 h-20"><div className="absolute inset-0 border-4 border-blue-500/10 rounded-full"></div><div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div><div className="absolute inset-0 flex items-center justify-center text-blue-500"><Cpu size={32} className="animate-pulse" /></div></div><div className="text-center space-y-2"><h4 className="text-xl font-black text-white italic tracking-tighter uppercase">數據重新計算中...</h4><p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] animate-pulse">SKS AI Core is processing statistics</p></div><div className="w-64 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-4"><div className="h-full bg-blue-600 animate-[progress_1.2s_ease-in-out_infinite]"></div></div></div>
+                        )}
+                        <div className={`flex-1 overflow-y-auto custom-scrollbar p-10 transition-all duration-700 ${isRecalculating ? 'blur-sm grayscale opacity-50 scale-[0.98]' : ''}`}>
+                          {activeDetailTab === 'site_daily_overview' && <SiteDailyOverview />}
+                          {activeDetailTab === 'site_cumulative_analysis' && <SiteCumulativeAnalysis />}
+                          {activeDetailTab === 'site_time_comparison' && <SiteTimeComparison />}
+                          {activeDetailTab === 'site_device_comparison' && <SiteDeviceComparison />}
+                          {activeDetailTab === 'site_behavior_profile' && <SiteBehaviorProfile onJumpToNav={onJumpToNav} />}
+                          {activeDetailTab === 'historical_trends' && <HistoricalTrends />}
+                          {activeDetailTab === 'coordinate_map' && <SpaceCoordinateMap />}
+                          {activeDetailTab === 'trigger_history' && <TriggerHistory deviceLabel={detailModalSlot.label} />}
+                          {activeDetailTab === 'space_trends' && (detailModalSlot.label.includes('人流') ? <SpaceFlowTrends /> : <SpaceHeatTrends />)}
+                          {activeDetailTab === 'security_info' && <SecurityInfo onJump={handleJumpToSecurity} />}
+                          {activeDetailTab === 'scenario_info' && <ScenarioInfo onJump={handleJumpToScenario} />}
+                          {activeDetailTab === 'device_info' && <DeviceInfo onJump={handleJumpToDeviceCenter} />}
+                        </div>
                     </div>
-                 )}
-              </div>
+                    {detailModalSlot.nodeType === 'site' && (
+                        <div className="w-[380px] border-l border-slate-800 bg-[#0b1121] flex flex-col shrink-0 p-8 overflow-y-auto custom-scrollbar text-left"><div className="space-y-10"><div className="space-y-6"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><Settings2 size={18} className="text-blue-500" /><h4 className="text-xs font-black text-white uppercase tracking-widest">統計參與設備設定</h4></div>{isStatsChanged && (<span className="text-[9px] font-black bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded border border-amber-500/20 animate-pulse">待更新</span>)}</div><p className="text-[10px] text-slate-500 font-medium leading-relaxed italic">勾選後需點擊下方的「確認套用」按鈕以重新計算 5 個 TAB 的分析數據。</p><div className="space-y-2">{eligibleStatsDevices.length > 0 ? eligibleStatsDevices.map(dev => (<button key={dev.id} onClick={() => togglePendingDevice(dev.id)} className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${pendingStatsDevices.has(dev.id) ? 'bg-blue-600/10 border-blue-500/50 shadow-lg shadow-blue-900/10' : 'bg-black/20 border-slate-800 text-slate-600'}`}><div className="flex items-center gap-3 min-w-0"><UserSearch size={16} className={pendingStatsDevices.has(dev.id) ? 'text-blue-400' : 'text-slate-700'} /><span className={`text-[11px] font-bold truncate ${pendingStatsDevices.has(dev.id) ? 'text-slate-200' : 'text-slate-600'}`}>{dev.label}</span></div>{pendingStatsDevices.has(dev.id) ? <CheckSquare size={16} className="text-blue-500" /> : <SquareIcon size={16} className="text-slate-800" />}</button>)) : (<div className="py-8 text-center text-[10px] text-slate-700 border border-dashed border-slate-800 rounded-2xl">此區域無符合條件的偵測設備</div>)}</div><button onClick={applyStatsDeviceSelection} disabled={!isStatsChanged || isRecalculating} className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-2xl border ${!isStatsChanged || isRecalculating ? 'bg-slate-800/30 border-slate-800 text-slate-700 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-blue-900/40 ring-4 ring-blue-600/10 animate-in zoom-in-95'}`}>{isRecalculating ? <Loader2 size={18} className="animate-spin" /> : <><CheckCircle2 size={18}/> 確認套用選取</>}</button></div><div className="h-px bg-slate-800"></div><div className="space-y-6"><div className="flex items-center gap-3"><Download size={18} className="text-emerald-500" /><h4 className="text-xs font-black text-white uppercase tracking-widest">數據資料匯出設定</h4></div><p className="text-[10px] text-slate-500 font-medium italic">請選擇欲匯出之分析報表項 (Excel / CSV / PDF)。</p><div className="space-y-2">{[{ id: 'daily', label: '當日人流總覽 (Daily Overview)' }, { id: 'cumulative', label: '歷史累計趨勢 (Cumulative)' }, { id: 'comparison', label: '多時段對比分析 (Comparison)' }, { id: 'device', label: '入口貢獻排行 (Performance)' }, { id: 'behavior', label: '行為輪廓特徵 (Behavior)' }].map(tab => (<button key={tab.id} onClick={() => toggleExportTab(tab.id)} className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all ${exportTabs.has(tab.id) ? 'bg-emerald-600/10 border-emerald-500/40' : 'bg-black/10 border-slate-800/50 text-slate-700'}`}><span className={`text-[10px] font-black uppercase tracking-tight ${exportTabs.has(tab.id) ? 'text-slate-200' : 'text-slate-700'}`}>{tab.label}</span>{exportTabs.has(tab.id) ? <CheckCircle2 size={16} className="text-emerald-500" /> : <div className="w-4 h-4 rounded-full border border-slate-800"></div>}</button>))}</div><button onClick={handleExport} disabled={isExporting} className={`w-full py-4 mt-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl ${isExporting ? 'bg-slate-800 text-slate-600' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'}`}>{isExporting ? <RefreshCw size={18} className="animate-spin" /> : <><Download size={18}/> 執行匯出任務</>}</button></div></div></div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="p-8 bg-[#0b1121] border-t border-slate-800 flex justify-end shrink-0 gap-5">
                  <button onClick={() => setDetailModalSlot(null)} className="px-14 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl transition-all active:scale-95 ring-1 ring-white/10">關閉綜觀面板</button>

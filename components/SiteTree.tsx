@@ -85,8 +85,8 @@ const TreeNode: React.FC<{
     }
   };
 
-  // 更新：Site 層級現在也可以拖曳
-  const isDraggable = node.type === 'device' || node.type === 'host' || node.type === 'site';
+  // 更新：Site 層級與 Zone 層級現在也可以拖曳
+  const isDraggable = node.type === 'device' || node.type === 'host' || node.type === 'site' || node.type === 'zone';
 
   const handleDragStart = (e: React.DragEvent) => {
     if (isDraggable) {
