@@ -132,8 +132,8 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
           security: secCount,
           scenario: sceCount,
           generalBreakdown: [
-            { label: '門磁', count: Math.floor(genCount * 0.4), color: 'bg-orange-500', pct: 40 },
-            { label: 'PIR', count: Math.ceil(genCount * 0.6), color: 'bg-orange-300', pct: 60 }
+            { label: '門磁', count: Math.floor(genCount * 0.4), color: 'bg-sky-500', pct: 40 },
+            { label: 'PIR', count: Math.ceil(genCount * 0.6), color: 'bg-sky-300', pct: 60 }
           ],
           securityBreakdown: secCount > 0 ? (
             isWeekend ? [
@@ -251,18 +251,19 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                       <h2 className="text-lg font-black text-white italic uppercase tracking-tighter mt-1">{selectedWeek.label}</h2>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 bg-black/40 px-6 py-3 rounded-2xl border border-white/5 shadow-inner"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-blue-500/40 rounded-sm"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">保全時段</span></div><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-indigo-500/40 rounded-sm"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">情境時段</span></div><div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-500 rounded-full"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">一般觸發</span></div><div className="flex items-center gap-2"><div className="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.6)]"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">保全告警</span></div><div className="flex items-center gap-2"><div className="w-2 h-2 bg-fuchsia-500 rounded-full shadow-[0_0_8px_rgba(217,70,239,0.6)]"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">情境觸發</span></div></div>
+                  <div className="flex items-center gap-4 bg-black/40 px-6 py-3 rounded-2xl border border-white/5 shadow-inner"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-emerald-500/30 rounded-sm"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">保全時段</span></div><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-indigo-500/40 rounded-sm"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">情境時段</span></div><div className="flex items-center gap-2"><div className="w-2 h-2 bg-sky-500 rounded-full"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">一般觸發</span></div><div className="flex items-center gap-2"><div className="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.6)]"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">保全告警</span></div><div className="flex items-center gap-2"><div className="w-2 h-2 bg-fuchsia-500 rounded-full shadow-[0_0_8px_rgba(217,70,239,0.6)]"></div><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">情境觸發</span></div></div>
                 </div>
                 <div className="w-full flex flex-col space-y-3.5 flex-1 min-h-0">
                   {DAYS.map((day, idx) => {
                       const isToday = idx === now.getDay();
+                      // Fix: Changed undefined variable 'dIdx' to 'idx' to match map parameter
                       const isWeekday = idx >= 1 && idx <= 5;
                       const currentHourPct = (now.getHours() * 60 + now.getMinutes()) / 1440 * 100;
                       return (
                         <div key={day} className="flex items-center gap-8 w-full group/row text-left">
                           <div className={`w-12 text-[12px] font-black transition-colors shrink-0 ${isToday ? 'text-blue-400 scale-110' : 'text-slate-600 group-hover/row:text-slate-400'}`}>{day}</div>
                           <div className="flex-1 h-14 bg-slate-900/60 rounded-[10px] border border-white/5 relative transition-all group-hover/row:border-white/10 shadow-inner">
-                              <div className="absolute inset-0 rounded-[10px] overflow-hidden pointer-events-none z-10">{showArmedPeriods && (isWeekday ? (<><div className="absolute left-0 w-[33%] h-full bg-blue-500/40"></div><div className="absolute right-0 w-[15%] h-full bg-blue-500/40"></div></>) : (<div className="absolute inset-0 bg-blue-500/40"></div>))}</div>
+                              <div className="absolute inset-0 rounded-[10px] overflow-hidden pointer-events-none z-10">{showArmedPeriods && (isWeekday ? (<><div className="absolute left-0 w-[33%] h-full bg-emerald-500/30"></div><div className="absolute right-0 w-[15%] h-full bg-emerald-500/30"></div></>) : (<div className="absolute inset-0 bg-emerald-500/30"></div>))}</div>
                               {showScenarioPeriods && (<div className="absolute inset-0 rounded-[10px] pointer-events-none z-20">{scenarioData.periods.filter(p => p.day.includes(idx)).map((p, pIdx) => (<div key={pIdx} className="absolute h-full top-0 bg-indigo-500/40 border-x border-indigo-400/20 group/sceblock pointer-events-auto cursor-pointer rounded-[10px]" style={{ left: `${(p.start/24)*100}%`, width: `${((p.end-p.start)/24)*100}%` }}><div className="absolute bottom-[calc(100%+10px)] left-1/2 -translate-x-1/2 px-4 py-2.5 bg-indigo-900/95 backdrop-blur-xl border border-indigo-400 rounded-xl text-[11px] font-black text-white whitespace-nowrap opacity-0 group-hover/sceblock:opacity-100 transition-all duration-200 z-[1000] shadow-2xl pointer-events-none scale-90 group-hover/sceblock:scale-100 ring-1 ring-white/10"><div className="flex items-center gap-2"><Sparkles size={14} className="text-indigo-300" /><span>{p.label}</span></div><div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-indigo-900 rotate-45 border-r border-b border-indigo-400"></div></div></div>))}</div>)}
                               {Array.from(selectedDeviceIds).map(devId => {
                                 const events = designedEvents[devId] || [];
@@ -271,8 +272,8 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                                     const triggerLabel = isArmedAtThisTime ? "保全告警" : "一般觸發";
                                     return (
                                         <div key={`${devId}-${idx}-${eIdx}`} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center z-30 group/point" style={{ left: `${evt.hourPct}%` }}>
-                                          <div className={`absolute bottom-5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded border mb-1 pointer-events-none transition-transform group-hover/point:scale-110 z-40 ${isArmedAtThisTime ? "bg-red-600 border-red-300 shadow-[0_0_15px_rgba(239,68,68,0.6)]" : "bg-orange-600 border-orange-300 shadow-[0_0_10px_rgba(249,115,22,0.4)]"}`}><span className="text-[10px] font-black text-white uppercase leading-none whitespace-nowrap">{evt.deviceName} ({triggerLabel})</span></div>
-                                          <div className={`w-2.5 h-2.5 rounded-full cursor-pointer hover:scale-150 transition-all border-2 border-white ${isArmedAtThisTime ? "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,1)]" : "bg-orange-500 shadow-[0_0_12px_rgba(249,115,22,1)]"}`}></div>
+                                          <div className={`absolute bottom-5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded border mb-1 pointer-events-none transition-transform group-hover/point:scale-110 z-40 ${isArmedAtThisTime ? "bg-red-600 border-red-300 shadow-[0_0_15px_rgba(239,68,68,0.6)]" : "bg-sky-600 border-sky-300 shadow-[0_0_10px_rgba(14,165,233,0.4)]"}`}><span className="text-[10px] font-black text-white uppercase leading-none whitespace-nowrap">{evt.deviceName} ({triggerLabel})</span></div>
+                                          <div className={`w-2.5 h-2.5 rounded-full cursor-pointer hover:scale-150 transition-all border-2 border-white ${isArmedAtThisTime ? "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,1)]" : "bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,1)]"}`}></div>
                                         </div>
                                     );
                                 });
@@ -303,7 +304,7 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-4 bg-black/40 px-6 py-2.5 rounded-2xl border border-white/5">
-                     <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-blue-600 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">保全設防時長</span></div>
+                     <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">保全設防時長</span></div>
                      <div className="flex items-center gap-2 ml-4"><div className="w-2.5 h-2.5 bg-indigo-600 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">情境活動時長</span></div>
                   </div>
                </div>
@@ -319,10 +320,10 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                                 <div className="space-y-1 animate-in slide-in-from-left-4 text-left">
                                    <div className="flex justify-between items-center px-1">
                                       <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">保全設防時長</span>
-                                      <span className="text-[10px] font-mono font-black text-blue-400">{data.duration.armed.toFixed(1)}小時</span>
+                                      <span className="text-[10px] font-mono font-black text-emerald-400">{data.duration.armed.toFixed(1)}小時</span>
                                    </div>
                                    <div className="h-4 bg-slate-900 rounded-full p-0.5 border border-white/5 shadow-inner">
-                                      <div className="h-full bg-blue-600 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.3)] transition-all duration-1000" style={{ width: `${(data.duration.armed/24)*100}%` }}></div>
+                                      <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all duration-1000" style={{ width: `${(data.duration.armed/24)*100}%` }}></div>
                                    </div>
                                 </div>
                               )}
@@ -361,7 +362,7 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-4 bg-black/40 px-6 py-2.5 rounded-2xl border border-white/5">
-                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-orange-500 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">一般觸發</span></div>
+                        <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 bg-sky-500 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">一般觸發</span></div>
                         <div className="flex items-center gap-2 ml-4"><div className="w-2.5 h-2.5 bg-red-600 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">保全告警</span></div>
                         <div className="flex items-center gap-2 ml-4"><div className="w-2.5 h-2.5 bg-fuchsia-600 rounded-sm"></div><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">情境觸發</span></div>
                     </div>
@@ -383,7 +384,7 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                               {statsFrequencyFilter.has('general') && (
                                 <div className="space-y-1.5 animate-in slide-in-from-left-4">
                                    <div className="flex justify-between items-center px-1">
-                                      <span className="text-[11px] font-black text-orange-400 uppercase tracking-widest flex items-center gap-2">一般觸發次數：<span className="font-mono text-base">{Math.round(data.frequency.general)}次</span></span>
+                                      <span className="text-[11px] font-black text-sky-400 uppercase tracking-widest flex items-center gap-2">一般觸發次數：<span className="font-mono text-base">{Math.round(data.frequency.general)}次</span></span>
                                    </div>
                                    {/* 高度調整 h-6 -> h-4, 移除 overflow-hidden 確保 tooltip 可見 */}
                                    <div className="h-4 bg-slate-900 rounded-full p-0.5 border border-white/5 shadow-inner flex">
@@ -395,7 +396,7 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                                         >
                                            {/* Tooltip 呈現 */}
                                            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-[#1e293b] border border-slate-700 rounded-xl p-3 shadow-2xl opacity-0 group-hover/seg:opacity-100 transition-all pointer-events-none z-[100] translate-y-2 group-hover/seg:translate-y-0 text-left min-w-max whitespace-nowrap">
-                                              <div className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1 pb-1 border-b border-white/5">{seg.label}</div>
+                                              <div className="text-[10px] font-black text-sky-400 uppercase tracking-widest mb-1 pb-1 border-b border-white/5">{seg.label}</div>
                                               <div className="flex justify-between items-baseline gap-4">
                                                  <span className="text-[14px] font-black text-white font-mono">{seg.count}次</span>
                                                  <span className="text-[10px] text-slate-500 font-bold">{seg.pct}%</span>
@@ -437,7 +438,7 @@ const ZoneDetailView: React.FC<ZoneDetailViewProps> = ({
                                 </div>
                               )}
 
-                              {/* 情境觸發：分段比例條 (更新為分段 Tooltip 樣式) */}
+                              {/* 情境觸發：分段比例條 (更新為分段 Tooltip樣式) */}
                               {statsFrequencyFilter.has('scenario') && (
                                 <div className="space-y-1.5 animate-in slide-in-from-left-4">
                                    <div className="flex justify-between items-center px-1">
