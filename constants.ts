@@ -1,4 +1,3 @@
-
 import { SiteNode, SecurityEvent, FloorPlanData } from './types';
 
 export const SITE_TREE_DATA: SiteNode[] = [
@@ -41,6 +40,17 @@ export const SITE_TREE_DATA: SiteNode[] = [
                   { id: 'c-multi-btn-time', label: '多功能按鈕(時段)', type: 'device', deviceType: 'emergency' },
                 ],
               },
+              {
+                id: 'zone-hq-lab',
+                label: '研發實驗室 (分區2)',
+                type: 'zone',
+                isOpen: true,
+                children: [
+                  { id: 'lab-door', label: '門磁', type: 'device', deviceType: 'door' },
+                  { id: 'lab-pir', label: 'PIR', type: 'device', deviceType: 'sensor' },
+                  { id: 'lab-ipc', label: '實驗室 IPC', type: 'device', deviceType: 'camera' }
+                ]
+              }
             ],
           },
         ],
@@ -277,15 +287,35 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
     type: 'image',
     imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan.png?raw=true',
     hostPosition: { x: 75, y: 50 },
+    zoneRegions: [
+      {
+        zoneId: 'zone-hq-office',
+        label: '大辦公區',
+        color: '#3b82f6', 
+        points: [{x: 5, y: 15}, {x: 60, y: 15}, {x: 60, y: 90}, {x: 5, y: 90}]
+      },
+      {
+        zoneId: 'zone-hq-lab',
+        label: '研發實驗室',
+        color: '#a855f7', 
+        points: [{x: 65, y: 15}, {x: 95, y: 15}, {x: 95, y: 90}, {x: 65, y: 90}]
+      }
+    ],
     sensors: [
-      { id: 'c-webcam', x: 23.5, y: 41.5 },  
-      { id: 'c-ipc-1', x: 44.8, y: 38.2 },   
-      { id: 'c-pir', x: 33.6, y: 50.8 },     
-      { id: 'o-door', x: 18.5, y: 71.2 },    
-      { id: 'c-space', x: 50.0, y: 85.0 },
-      { id: 'c-space-back', x: 85.0, y: 20.0 },
-      { id: 'c-space-side-a', x: 10.0, y: 50.0 },
-      { id: 'c-space-side-b', x: 90.0, y: 50.0 }
+      { id: 'c-webcam', x: 23.5, y: 41.5, zoneId: 'zone-hq-office' },  
+      { id: 'c-ipc-1', x: 44.8, y: 38.2, zoneId: 'zone-hq-office' },   
+      { id: 'c-pir', x: 33.6, y: 50.8, zoneId: 'zone-hq-office' },     
+      { id: 'o-door', x: 18.5, y: 71.2, zoneId: 'zone-hq-office' },    
+      { id: 'c-space', x: 50.0, y: 85.0, zoneId: 'zone-hq-office' },
+      { id: 'c-space-back', x: 85.0, y: 20.0, zoneId: 'zone-hq-office' }, // 修正：從 lab 移至 office
+      { id: 'c-space-side-a', x: 10.0, y: 50.0, zoneId: 'zone-hq-office' },
+      { id: 'c-space-side-b', x: 90.0, y: 50.0, zoneId: 'zone-hq-office' }, // 修正：從 lab 移至 office
+      { id: 'c-env', x: 68.2, y: 28.5, zoneId: 'zone-hq-office' }, // 修正：從 lab 移至 office
+      { id: 'c-multi-btn', x: 15.0, y: 58.5, zoneId: 'zone-hq-office' },
+      { id: 'c-multi-btn-time', x: 30.5, y: 22.0, zoneId: 'zone-hq-office' },
+      { id: 'lab-door', x: 75.0, y: 80.0, zoneId: 'zone-hq-lab' },
+      { id: 'lab-pir', x: 82.0, y: 65.0, zoneId: 'zone-hq-lab' },
+      { id: 'lab-ipc', x: 70.0, y: 45.0, zoneId: 'zone-hq-lab' }
     ]
   },
   {
@@ -293,16 +323,30 @@ export const INITIAL_FLOOR_PLANS: FloorPlanData[] = [
     type: 'image',
     imageUrl: 'https://github.com/yuchehsieh/Spaces-P2-Assets/blob/main/images/Floor%20Plan%202.png?raw=true',
     hostPosition: { x: 70, y: 32 },
+    zoneRegions: [
+        {
+          zoneId: 'zone-zs-warehouse',
+          label: '倉庫區',
+          color: '#10b981', 
+          points: [{x: 5, y: 5}, {x: 95, y: 5}, {x: 95, y: 45}, {x: 5, y: 45}]
+        },
+        {
+          zoneId: 'zone-zs-manager',
+          label: '管理辦公區',
+          color: '#f59e0b', 
+          points: [{x: 5, y: 55}, {x: 95, y: 55}, {x: 95, y: 95}, {x: 5, y: 95}]
+        }
+    ],
     sensors: [
-      { id: 'w-door-1', x: 15, y: 25 },  
-      { id: 'w-ipc-1', x: 35, y: 18 },
-      { id: 'w-space-heat', x: 60, y: 25 },
-      { id: 'm-door-1', x: 25, y: 65 },  
-      { id: 'm-sos-1', x: 50, y: 75 },
-      { id: 'm-space-heat-a', x: 12.5, y: 80 },  // 辦公室A (左下)
-      { id: 'm-space-heat-b', x: 37.5, y: 80 },  // 辦公室B (中左下)
-      { id: 'm-space-heat-c', x: 62.5, y: 80 },  // 辦公室C (中右下)
-      { id: 'm-space-heat-rest', x: 87.5, y: 80 }, // 休息區 (右下)
+      { id: 'w-door-1', x: 15, y: 25, zoneId: 'zone-zs-warehouse' },  
+      { id: 'w-ipc-1', x: 35, y: 18, zoneId: 'zone-zs-warehouse' },
+      { id: 'w-space-heat', x: 60, y: 25, zoneId: 'zone-zs-warehouse' },
+      { id: 'm-door-1', x: 25, y: 65, zoneId: 'zone-zs-manager' },  
+      { id: 'm-sos-1', x: 50, y: 75, zoneId: 'zone-zs-manager' },
+      { id: 'm-space-heat-a', x: 12.5, y: 80, zoneId: 'zone-zs-manager' },
+      { id: 'm-space-heat-b', x: 37.5, y: 80, zoneId: 'zone-zs-manager' },
+      { id: 'm-space-heat-c', x: 62.5, y: 80, zoneId: 'zone-zs-manager' },
+      { id: 'm-space-heat-rest', x: 87.5, y: 80, zoneId: 'zone-zs-manager' },
     ]
   }
 ];

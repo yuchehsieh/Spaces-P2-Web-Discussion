@@ -217,7 +217,6 @@ const EventTab: React.FC<EventTabProps> = ({ initialSubTab = 'list' }) => {
             <button 
               key={item.id} 
               onClick={() => { setActiveSubNav(item.id as EventSubNavType); setModalContent(null); }} 
-              // Fix: Changed undefined variable 'activeNav' to correctly use 'activeSubNav' from local state
               className={`w-full flex items-start gap-4 px-4 py-4 rounded-2xl transition-all duration-300 border relative ${activeSubNav === item.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl' : 'bg-transparent border-transparent text-slate-500 hover:bg-slate-800/50'}`}
             >
               <div className={`mt-0.5 p-2 rounded-xl relative ${activeSubNav === item.id ? 'bg-white/20' : 'bg-slate-800 text-slate-400'}`}>
@@ -387,7 +386,7 @@ const EventTab: React.FC<EventTabProps> = ({ initialSubTab = 'list' }) => {
                        </div>
                        <div className="space-y-3">
                           <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2"><MessageSquare size={14} className="text-blue-500" /> 處置內容說明</label>
-                          <textarea value={handleNote} onChange={(e) => setHandleNote(e.target.value)} placeholder="請輸入案件詳細處置狀況或備註事項..." className="w-full h-32 bg-black/40 border border-slate-800 rounded-2xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition-all resize-none shadow-inner" />
+                          <textarea value={handleNote} onChange={(e) => setHandleNote(e.target.value)} placeholder="請輸入案件詳細處置狀況或備註事項..." className="w-full h-32 bg-black/40 border border-slate-800 rounded-2xl p-4 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition-all resize-none shadow-inner placeholder:text-slate-800" />
                        </div>
                     </div>
                  )}

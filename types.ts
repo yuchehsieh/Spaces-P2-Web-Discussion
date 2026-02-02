@@ -1,4 +1,3 @@
-
 export interface SiteNode {
   id: string;
   label: string;
@@ -49,11 +48,20 @@ export interface SensorPosition {
   id: string;
   x: number; // percentage 0-100
   y: number; // percentage 0-100
+  zoneId?: string; // 新增：關聯的分區ID
 }
 
 export interface MapRegion {
   id: string;
   coords: [number, number][]; // 儲存精確的頂點經緯度陣列
+}
+
+// 用於平面圖上的自訂多邊形範圍 (百分比座標)
+export interface ZonePolygon {
+  zoneId: string;
+  label: string;
+  color: string;
+  points: {x: number, y: number}[];
 }
 
 export interface MapPin {
@@ -67,7 +75,7 @@ export interface FloorPlanData {
   siteId: string;
   type: 'image' | 'map';
   imageUrl?: string;
-  hostPosition?: { x: number; y: number }; // 新增：主機在 BMP 上的位置
+  hostPosition?: { x: number; y: number };
   mapConfig?: {
     center: [number, number];
     zoom: number;
@@ -75,6 +83,7 @@ export interface FloorPlanData {
     pins?: MapPin[];      
   };
   sensors: SensorPosition[];
+  zoneRegions?: ZonePolygon[]; // 新增：分區範圍多邊形定義
 }
 
 export type GridSize = 1 | 4 | 9 | 16;
