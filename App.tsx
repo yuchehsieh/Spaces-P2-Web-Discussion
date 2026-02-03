@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import SiteTree from './components/SiteTree';
 import VideoGrid, { VideoSlotData } from './components/VideoGrid';
@@ -15,25 +15,36 @@ import VLMTab from './components/VLMTab';
 import DeviceDetailModal from './components/DeviceDetailModal';
 import { SITE_TREE_DATA, MOCK_EVENTS, INITIAL_FLOOR_PLANS } from './constants';
 import { MainNavType, SiteNode, TabType, GridSize, SecurityEvent } from './types';
-import { Grid2x2, Grid3x3, Square, User as UserIcon } from 'lucide-react';
+import { Grid2x2, Grid3x3, Square, User as UserIcon, LayoutGrid, ChevronDown, Check } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeNav, setActiveNav] = useState<MainNavType>('security-center');
   const [activeTab, setActiveTab] = useState<TabType>('camera');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [gridSize, setGridSize] = useState<GridSize>(4);
+  const [isGridMenuOpen, setIsGridMenuOpen] = useState(false);
+  const gridMenuRef = useRef<HTMLDivElement>(null);
+
   const [events, setEvents] = useState<SecurityEvent[]>(MOCK_EVENTS);
-  
   const [viewingSiteId, setViewingSiteId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [defaultViewId, setDefaultViewId] = useState<string | null>(() => localStorage.getItem('sks_default_map_view'));
 
   const [videoSlots, setVideoSlots] = useState<Record<number, VideoSlotData>>({});
   const [detailModalSlot, setDetailModalSlot] = useState<{ id: string; label: string; nodeType?: string } | null>(null);
-  
   const [eventCenterInitialTab, setEventCenterInitialTab] = useState<'list' | 'settings' | 'security-schedule'>('list');
 
   const idsWithFloorPlan = useMemo(() => new Set(INITIAL_FLOOR_PLANS.map(p => p.siteId)), []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (gridMenuRef.current && !gridMenuRef.current.contains(e.target as Node)) {
+        setIsGridMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleNodeSelect = (node: SiteNode) => {
     setSelectedNodeId(node.id);
@@ -58,21 +69,12 @@ const App: React.FC = () => {
   };
 
   const handleJumpToNav = (nav: MainNavType, subTab?: string) => {
-    // 1. 強制立即關閉詳情 Modal，釋放 DOM 佔用
     setDetailModalSlot(null);
-    
-    // 2. 設定目標子分頁的初始狀態（如有需要）
     if (nav === 'event-center') {
-      if (subTab === 'security-schedule') {
-        setEventCenterInitialTab('security-schedule');
-      } else if (subTab === 'settings') {
-        setEventCenterInitialTab('settings');
-      } else {
-        setEventCenterInitialTab('list');
-      }
+      if (subTab === 'security-schedule') setEventCenterInitialTab('security-schedule');
+      else if (subTab === 'settings') setEventCenterInitialTab('settings');
+      else setEventCenterInitialTab('list');
     }
-    
-    // 3. 增加關鍵延遲 (150ms)，確保 Modal 完全卸載後再執行頁面切換
     setTimeout(() => {
         setActiveNav(prev => nav);
     }, 150);
@@ -140,6 +142,117 @@ const App: React.FC = () => {
 
   const handleClearEvents = () => setEvents([]);
 
+  // --- 宮格預覽圖示元件：符合附件 1-10 宮格樣式並加深選中效果 ---
+  const GridPreviewIcon = ({ size, isSelected }: { size: number; isSelected: boolean }) => {
+    const stroke = isSelected ? "white" : "currentColor";
+    const strokeWidth = isSelected ? 2.5 : 1;
+    const fill = "none";
+    
+    return (
+      <div className={`w-10 h-6 shrink-0 transition-colors ${isSelected ? 'text-white' : 'text-slate-500 group-hover:text-blue-400'}`}>
+        <svg viewBox="0 0 100 60" className="w-full h-full">
+          {size === 1 && (
+            <rect x="2" y="2" width="96" height="56" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+          )}
+          {size === 2 && (
+            <>
+              <rect x="2" y="2" width="46" height="56" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="2" width="46" height="56" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 3 && (
+            <>
+              <rect x="2" y="2" width="46" height="56" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="2" width="46" height="26" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="32" width="46" height="26" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 4 && (
+            <>
+              <rect x="2" y="2" width="46" height="26" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="2" width="46" height="26" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="2" y="32" width="46" height="26" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="32" width="46" height="26" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 5 && (
+            <>
+              {/* 五宮格: 左一大, 右四小 (符合附件圖片) */}
+              <rect x="2" y="2" width="46" height="56" rx="2" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="2" width="22" height="26" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="76" y="2" width="22" height="26" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="32" width="22" height="26" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="76" y="32" width="22" height="26" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 6 && (
+            <>
+              {/* 六宮格: 1大(2x2)+5小 */}
+              <rect x="2" y="2" width="62" height="36" rx="1.5" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="68" y="2" width="30" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="68" y="21" width="30" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="2" y="42" width="30" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="35" y="42" width="30" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="68" y="42" width="30" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 7 && (
+            <>
+              {/* 七宮格: 1大(3x2)+2右+4下 (精確符合附件圖片 2) */}
+              <rect x="2" y="2" width="71" height="36" rx="1.5" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="76" y="2" width="22" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="76" y="21" width="22" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="2" y="42" width="22" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="26" y="42" width="23" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="42" width="22" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="76" y="42" width="22" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 8 && (
+            <>
+              {/* 八宮格: 1大(4x2)+2右+5下 */}
+              <rect x="2" y="2" width="78" height="36" rx="1.5" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="83" y="2" width="15" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="83" y="21" width="15" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="2" y="42" width="16" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="22" y="42" width="17" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="42" y="42" width="16" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="62" y="42" width="16" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="82" y="42" width="16" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size === 9 && (
+            <>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                <rect key={i} x={(i % 3) * 33 + 2} y={Math.floor(i / 3) * 20 + 2} width="29" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              ))}
+            </>
+          )}
+          {size === 10 && (
+            <>
+              {/* 十宮格: 上2大(2x2), 下8小 */}
+              <rect x="2" y="2" width="46" height="26" rx="1.5" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="52" y="2" width="46" height="26" rx="1.5" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="2" y="32" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="26" y="32" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="50" y="32" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="74" y="32" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="2" y="46" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="26" y="46" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="50" y="46" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+              <rect x="74" y="46" width="22" height="12" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            </>
+          )}
+          {size > 10 && (
+            Array.from({ length: 12 }).map((_, i) => (
+              <rect key={i} x={(i % 4) * 24 + 2} y={Math.floor(i / 4) * 20 + 2} width="20" height="16" rx="1" stroke={stroke} strokeWidth={strokeWidth} fill={fill} />
+            ))
+          )}
+        </svg>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-slate-200 overflow-hidden font-sans">
       <header className="h-14 bg-[#004a99] flex items-center justify-between px-4 border-b border-slate-800 shrink-0 z-30 shadow-md">
@@ -178,12 +291,44 @@ const App: React.FC = () => {
                             );
                         })}
                     </div>
+
+                    {/* 宮格選擇器 (1-26) */}
                     {activeTab === 'camera' && (
-                    <div className="ml-auto flex items-center bg-[#050914] p-1 rounded-2xl border border-slate-800/50 shadow-inner gap-0.5">
-                        <button onClick={() => setGridSize(1)} className={`p-2 rounded-xl transition-all active:scale-90 ${gridSize === 1 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'}`} title="Single View"><Square size={14} strokeWidth={3} /></button>
-                        <button onClick={() => setGridSize(4)} className={`p-2 rounded-xl transition-all active:scale-90 ${gridSize === 4 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'}`} title="2x2 Grid"><Grid2x2 size={14} /></button>
-                        <button onClick={() => setGridSize(9)} className={`p-2 rounded-xl transition-all active:scale-90 ${gridSize === 9 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'}`} title="3x3 Grid"><Grid3x3 size={14} /></button>
-                        <button onClick={() => setGridSize(16)} className={`p-2 rounded-xl transition-all active:scale-90 ${gridSize === 16 ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'}`} title="4x4 Grid"><Square size={14} /></button>
+                    <div className="ml-auto relative" ref={gridMenuRef}>
+                        <button 
+                          onClick={() => setIsGridMenuOpen(!isGridMenuOpen)}
+                          className={`flex items-center gap-3 px-4 py-2.5 bg-[#050914] border border-slate-800 rounded-xl transition-all shadow-inner hover:border-blue-500 group ${isGridMenuOpen ? 'ring-2 ring-blue-500 border-blue-500' : ''}`}
+                        >
+                           <LayoutGrid size={16} className="text-blue-500" />
+                           <span className="text-[11px] font-black text-slate-300 uppercase tracking-widest">{gridSize} Cameras</span>
+                           <ChevronDown size={14} className={`text-slate-600 transition-transform ${isGridMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isGridMenuOpen && (
+                          <div className="absolute top-full right-0 mt-3 w-64 bg-[#0f172a]/95 backdrop-blur-xl border border-slate-700 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[100] overflow-hidden animate-in zoom-in-95 duration-200 ring-1 ring-white/10">
+                             <div className="p-4 bg-black/20 border-b border-slate-800">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">選擇畫面配置 (1~26)</span>
+                             </div>
+                             <div className="max-h-[450px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                {Array.from({ length: 26 }, (_, i) => i + 1).map((num) => {
+                                  const isSelected = gridSize === num;
+                                  return (
+                                    <button 
+                                      key={num}
+                                      onClick={() => { setGridSize(num); setIsGridMenuOpen(false); }}
+                                      className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all group ${isSelected ? 'bg-blue-600 text-white shadow-xl ring-2 ring-white/40 scale-[1.02] z-10' : 'hover:bg-white/5 text-slate-400 hover:text-slate-100'}`}
+                                    >
+                                       <div className="flex items-center gap-4">
+                                          <GridPreviewIcon size={num} isSelected={isSelected} />
+                                          <span className={`text-sm font-black italic tracking-tighter ${isSelected ? 'text-white' : ''}`}>{num} Camera{num > 1 ? 's' : ''}</span>
+                                       </div>
+                                       {isSelected && <Check size={16} strokeWidth={4} className="text-white" />}
+                                    </button>
+                                  );
+                                })}
+                             </div>
+                          </div>
+                        )}
                     </div>
                     )}
                 </div>

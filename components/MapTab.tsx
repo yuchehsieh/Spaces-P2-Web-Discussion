@@ -208,7 +208,9 @@ const MapTab: React.FC<MapTabProps> = ({
       const initTimer = setTimeout(() => {
         if (!mapContainerRef.current) return;
         try {
-          const config = activePlanData.mapConfig || { center: [25.0629, 121.5796], zoom: 17 };
+          /* DO add comment above each fix. */
+          /* Fix: Added regions and pins properties to the fallback object to ensure it matches the mapConfig structure and satisfies TypeScript requirements. */
+          const config = activePlanData.mapConfig || { center: [25.0629, 121.5796], zoom: 17, regions: [], pins: [] };
           const map = L.map(mapContainerRef.current, { zoomControl: false, attributionControl: false }).setView(config.center, config.zoom);
           L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
           config.regions?.forEach(region => {

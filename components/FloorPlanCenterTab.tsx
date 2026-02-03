@@ -144,7 +144,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
       {hasChildren && isOpen && (
         <div className="animate-in fade-in slide-in-from-top-1 duration-200">
           {node.children!.map(child => (
-            <TreeItem key={child.id} node={child} level={level + 1} selectedId={selectedId} onSelect={onSelect} searchTerm={searchTerm} idsWithFloorPlan={idsWithFloorPlan} placedDeviceIds={placedDeviceIds} isEditing={isEditing} selectedNode={selectedNode} />
+            <TreeItem key={child.id} node={child} level={level + 1} selectedId={selectedId} onSelect={id => onSelect(id)} searchTerm={searchTerm} idsWithFloorPlan={idsWithFloorPlan} placedDeviceIds={placedDeviceIds} isEditing={isEditing} selectedNode={selectedNode} />
           ))}
         </div>
       )}
@@ -223,7 +223,9 @@ const FloorPlanCenterTab: React.FC<{ initialSiteId?: string | null }> = ({ initi
     if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
     if (viewMapRef.current) { viewMapRef.current.remove(); viewMapRef.current = null; }
 
-    const config = activeFloorPlan?.mapConfig || { center: [25.0629, 121.5796], zoom: isGroupLevel ? 11 : 17 };
+    /* DO add comment above each fix. */
+    /* Fix: Added regions and pins properties to the fallback object to match the mapConfig interface and resolve TypeScript property access errors. */
+    const config = activeFloorPlan?.mapConfig || { center: [25.0629, 121.5796], zoom: isGroupLevel ? 11 : 17, regions: [], pins: [] };
     const map = L.map(container, { zoomControl: false, attributionControl: false }).setView(config.center, config.zoom);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 

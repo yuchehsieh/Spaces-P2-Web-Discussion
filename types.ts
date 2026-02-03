@@ -86,6 +86,6 @@ export interface FloorPlanData {
   zoneRegions?: ZonePolygon[]; // 新增：分區範圍多邊形定義
 }
 
-export type GridSize = 1 | 4 | 9 | 16;
+export type GridSize = number; // 擴展為支援 1-26
 export type TabType = 'camera' | 'security' | 'map' | 'vlm';
 export type MainNavType = 'security-center' | 'playback-center' | 'device-center' | 'event-center' | 'account-center' | 'floorplan-center' | 'setting-center';
